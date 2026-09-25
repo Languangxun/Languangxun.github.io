@@ -32,7 +32,7 @@
           io.unobserve(entry.target);
         }
       });
-    }, { threshold: 0.12 });
+    }, { threshold: 0 });
     reveals.forEach(function (el) { io.observe(el); });
   }
 
