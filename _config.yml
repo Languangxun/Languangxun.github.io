@@ -1,0 +1,19 @@
+title: monologue 的小站
+description: 量化研究 · 系统实验 · 项目文档
+author: monologue
+lang: zh-CN
+url: https://languangxun.github.io
+baseurl: ""
+theme: minima
+github_username: Languangxun
+header_pages:
+  - docs/index.md
+plugins:
+  - jekyll-feed
+  - jekyll-seo-tag
+kramdown:
+  input: GFM
+exclude:
+  - README.md
+  - Gemfile
+  - Gemfile.lock
