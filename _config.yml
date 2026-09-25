@@ -1,16 +1,13 @@
-title: monologue 的小站
-description: 量化研究 · 系统实验 · 项目文档
-author: monologue
-lang: zh-CN
+title: 獨白
+tagline: 擇善固執，初心不渝
+description: 獨白的个人主页：量化研究、系统实验与项目文档
+author: 獨白
+lang: zh
 url: https://languangxun.github.io
 baseurl: ""
-theme: minima
 github_username: Languangxun
-header_pages:
-  - docs/index.md
-plugins:
-  - jekyll-feed
-  - jekyll-seo-tag
+telegram: https://t.me/Monologue_101
+qq: "2180287399"
 kramdown:
   input: GFM
 exclude:
