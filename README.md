@@ -7,7 +7,7 @@
 - 布局：`_layouts/default.html`、`_layouts/page.html`
 - 样式：`assets/css/style.css`；脚本：`assets/js/main.js`
 - 头像：`assets/img/avatar.png`
-- 首屏「Monologue」书写动画：`_includes/monologue-ink.svg`，由 [InkTrail](https://github.com/GXeLla/InkTrail)（MIT）的 Apple-like 预设（Caveat 字体）离线生成，自包含 CSS 动画
+- 首屏「MONOLOGUE」手写动画：`_includes/monologue-ink.svg`，由 [GenLineAnimation-Server](https://github.com/jrenc2002/GenLineAnimation-Server) 的签名接口生成（全大写；其小写 o 字形数据有缺陷，会渲染成墨点），已压平为单个自包含 SVG，逐笔 stroke-dashoffset 书写
 - 版式参考 [iamreiyn/apple-website-clone](https://github.com/iamreiyn/apple-website-clone)（MIT）的 apple.com 布局，配色改为深色
 - 项目文档：`docs/`（Markdown，带 front matter）
 - 联系方式：Telegram `@Monologue_101`、QQ `2180287399`
