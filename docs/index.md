@@ -12,7 +12,6 @@ permalink: /docs/
 |---|---|
 | ai-quant · OrangePi 量化模拟盘 | [系统说明](/docs/ai-quant/) |
 | stock-analyzer · A 股形态分析 | [使用说明](/docs/stock-analyzer/) · [架构设计](/docs/stock-analyzer-architecture/) · [插件 API](/docs/stock-analyzer-plugin-api/) |
-| chaodi 策略选股 | [策略与部署说明](/docs/chaodi-strategies/) |
 | stock-pi-mobile 触摸屏终端 | [终端说明](/docs/stock-pi-mobile/) |
 
 ## 系统实验

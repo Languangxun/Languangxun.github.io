@@ -28,12 +28,6 @@ title: 首页
   </div>
 
   <div class="project-card">
-    <h3>chaodi 策略选股</h3>
-    <p>用通达信语义重算指标与信号的 18 个短线选股策略，含本地 GUI 与云端网页版。</p>
-    <p class="card-links"><a href="/docs/chaodi-strategies/">文档</a></p>
-  </div>
-
-  <div class="project-card">
     <h3>stock-pi-mobile</h3>
     <p>2.4 寸触摸屏随身盯盘终端：自选 / 荐股 / AI 问答 / WiFi 设置，复用 stock-analyzer 后端。</p>
     <p class="card-links"><a href="/docs/stock-pi-mobile/">文档</a></p>
