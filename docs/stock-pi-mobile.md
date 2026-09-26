@@ -66,7 +66,7 @@ fi
 `~/.config/openbox/autostart` 里追加：
 
 ```sh
-/home/pi/stock_pi_mobile/start_mobile.sh &
+~/stock_pi_mobile/start_mobile.sh &
 ```
 
 ### 文字输入
@@ -92,7 +92,7 @@ Pi Zero/armv6 跑不动三档引擎，用「电脑算、终端看」：
 # 电脑上（装了 numpy 的机器，数据库同目录）
 python3 make_picks.py --backend ~/stock_predict
 # 生成 picks_cache.json（三档全量），拷到终端 stock_pi_mobile/ 下
-rsync -a picks_cache.json pi@<Pi-局域网IP>:~/stock_pi_mobile/
+rsync -a picks_cache.json pi@<内网IP>:~/stock_pi_mobile/
 ```
 
 终端打开「荐股」会直接秒读快照，右上角标注 `快照 时间 · topN`；

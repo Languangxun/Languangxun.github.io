@@ -21,7 +21,7 @@ title: 首页
     <article class="project-card reveal">
       <header class="card-top"><h3>stock-analyzer</h3><span class="tag">v6.1.5</span></header>
       <p>基于历史形态相似度匹配 + 多维融合 + 三档组合策略的 A 股短线统计研究工具。</p>
-      <div class="card-links"><a href="https://github.com/Languangxun/stock-analyzer">源码</a><a href="/docs/stock-analyzer/">文档</a><a href="/docs/stock-analyzer-architecture/">架构</a></div>
+      <div class="card-links"><a href="https://github.com/Languangxun/stock-analyzer">源码</a><a href="/docs/stock-analyzer/">文档</a><a href="/docs/stock-analyzer-architecture/">架构</a><a href="/docs/stock-analyzer-backtest/">回测</a></div>
     </article>
 
     <article class="project-card reveal">

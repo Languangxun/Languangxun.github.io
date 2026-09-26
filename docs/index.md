@@ -11,7 +11,7 @@ permalink: /docs/
 | 项目 | 文档 |
 |---|---|
 | ai-quant · OrangePi 量化模拟盘 | [系统说明](/docs/ai-quant/) |
-| stock-analyzer · A 股形态分析 | [使用说明](/docs/stock-analyzer/) · [架构设计](/docs/stock-analyzer-architecture/) · [插件 API](/docs/stock-analyzer-plugin-api/) |
+| stock-analyzer · A 股形态分析 | [使用说明](/docs/stock-analyzer/) · [架构设计](/docs/stock-analyzer-architecture/) · [插件 API](/docs/stock-analyzer-plugin-api/) · [单股回测报告](/docs/stock-analyzer-backtest/) |
 | stock-pi-mobile 触摸屏终端 | [终端说明](/docs/stock-pi-mobile/) |
 
 ## 系统实验
