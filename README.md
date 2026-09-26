@@ -9,7 +9,13 @@
 - 头像：`assets/img/avatar.png`
 - 首屏「Monologue」书写动画：`_includes/monologue-ink.svg`，由 [InkTrail](https://github.com/GXeLla/InkTrail)（MIT）的 Apple-like 预设（Caveat 字体）离线生成，自包含 CSS 动画
 - 版式参考 [iamreiyn/apple-website-clone](https://github.com/iamreiyn/apple-website-clone)（MIT）的 apple.com 布局，配色改为深色
-- 项目文档：`docs/`（Markdown，带 front matter）
+- 项目文档：`docs/`（Markdown，带 front matter，内容同步自本地项目目录并已脱敏）
+  - ai-quant：`docs/ai-quant.md`
+  - stock-analyzer：`docs/stock-analyzer.md`、`stock-analyzer-architecture.md`、`stock-analyzer-plugin-api.md`
+  - stock-pi-mobile：`docs/stock-pi-mobile.md`
+  - OneOS：`docs/oneos.md`、`oneos-architecture.md`、`oneos-roadmap.md`、`oneos-boot-animation.md`
+  - AI 围棋竞技场：`docs/go-arena.md`
+  - 文档中心：`docs/index.md`；多篇文档的配图放在 `assets/img/`
 - 联系方式：Telegram `@Monologue_101`、QQ `2180287399`
 
 新增文档：把 Markdown 放入 `docs/`，在开头加上 `layout: page`、`title`、`permalink` 三个字段，提交推送到 `main` 分支后 GitHub Pages 自动构建。

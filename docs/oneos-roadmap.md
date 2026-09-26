@@ -1,10 +1,10 @@
 ---
 layout: page
-title: "OneOS 路线图"
+title: "OneOS · 路线图"
 permalink: /docs/oneos-roadmap/
 ---
 
-[← 返回文档中心](/docs/) · 来源：[Languangxun/oneos](https://github.com/Languangxun/oneos) · 同步于 2026-09-25
+[← 返回文档中心](/docs/) · 来源：[Languangxun/oneos](https://github.com/Languangxun/oneos) · 同步于 2026-09-26
 
 ## v0.0.1 框架（已完成）
 
@@ -38,7 +38,8 @@ permalink: /docs/oneos-roadmap/
 - [x] labwc 合成器（窗口管理、标题栏、快捷键）
 - [x] waybar 状态栏（workspaces / 时钟 / 网络 / CPU / 内存）
 - [x] fuzzel 启动器、swaybg 壁纸、foot 主题
-- [x] OneOS 深色主题与键位
+- [x] OneOS 深色主题与键位（labwc menu.xml + themerc）
+- [x] Apple Hello 风开机动画（Caveat 填充字形 + 墨迹遮罩，仿 InkTrail）
 - [ ] 图形设置面板
 - [ ] 自研合成器（以 smithay 起步，替代 labwc）
 - [ ] 输入法（需要合成器实现 input-method 协议）

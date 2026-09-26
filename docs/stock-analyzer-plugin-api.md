@@ -1,10 +1,10 @@
 ---
 layout: page
-title: "stock-analyzer 插件 API"
+title: "stock-analyzer · 插件 API"
 permalink: /docs/stock-analyzer-plugin-api/
 ---
 
-[← 返回文档中心](/docs/) · 来源：[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer) · 同步于 2026-09-25
+[← 返回文档中心](/docs/) · 来源：[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer) · 同步于 2026-09-26
 
 > 版本 1.0　适用于 `stock_gui.py`（含 `build_cli.py` 生成的 CLI 不加载插件）
 > 目标：在右侧栏注册一个自己的面板（例如「交易记录」），与「预测参考」并列切换。

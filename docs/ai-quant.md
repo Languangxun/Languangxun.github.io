@@ -4,7 +4,7 @@ title: "ai-quant · OrangePi 量化模拟盘"
 permalink: /docs/ai-quant/
 ---
 
-[← 返回文档中心](/docs/) · 来源：[Languangxun/ai-quant](https://github.com/Languangxun/ai-quant) · 同步于 2026-09-25
+[← 返回文档中心](/docs/) · 来源：[Languangxun/ai-quant](https://github.com/Languangxun/ai-quant) · 同步于 2026-09-26
 
 Pi（`orangepizero2w`）上的 AI 量化研究与模拟交易系统：**股票+ETF 组合模拟盘**
 （CLI 选股 + LLM 决策 + A股账本 + 全缓存回测）、旧版场外 ETF 联接 C 类基金

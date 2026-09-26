@@ -1,10 +1,10 @@
 ---
 layout: page
-title: "OneOS 架构设计"
+title: "OneOS · 架构设计"
 permalink: /docs/oneos-architecture/
 ---
 
-[← 返回文档中心](/docs/) · 来源：[Languangxun/oneos](https://github.com/Languangxun/oneos) · 同步于 2026-09-25
+[← 返回文档中心](/docs/) · 来源：[Languangxun/oneos](https://github.com/Languangxun/oneos) · 同步于 2026-09-26
 
 ## 分层
 
@@ -27,13 +27,16 @@ mkosi.conf                     镜像构建配置（发行版/包/引导/运行�
 mkosi.extra/                   原样覆盖到镜像根目录
   etc/                         品牌、网络、resolv.conf、systemd 启用软链
   usr/lib/systemd/system/      oneosd.socket / oneosd.service / oneos-session.service
-  usr/bin/                     make build 放入静态编译的 oneosd / oneos
+  usr/bin/                     make build 放入静态编译的 oneosd / oneos / oneos-splash
   root/.config/                桌面配置（labwc / waybar / fuzzel / foot）
 crates/oneos-proto/            协议定义与客户端库
 crates/oneosd/                 守护进程（socket 激活）
 crates/oneos/                  命令行客户端
+crates/oneos-splash/           开机动画（fbdev，零依赖）
+tools/gen-signature.py         用 fontTools + Caveat 生成字形轮廓数据
+tools/fonts/Caveat.ttf         手写字体（OFL，含许可证）
 scripts/dev.sh                 本机开发脚本（不启动虚拟机）
-docs/                          架构与路线图
+docs/                          架构、路线图、开机动画原理
 ```
 
 ## 为什么是 Debian + mkosi
@@ -103,5 +106,12 @@ docs/                          架构与路线图
 - ESP（512M，systemd-boot + `EFI/Linux/oneos-*.efi` 统一内核镜像）
 - 根分区（ext4，按内容 Minimize，安装后约 1G）
 
-`oneosd` / `oneos` 在本机用 musl 静态编译（`make build`），复制进 `mkosi.extra/usr/bin/`，
-因此镜像内不依赖任何运行时库版本。
+`oneosd` / `oneos` / `oneos-splash` 在本机用 musl 静态编译（`make build`），
+复制进 `mkosi.extra/usr/bin/`，因此镜像内不依赖任何运行时库版本。
+
+## 开机动画
+
+`oneos-splash` 在 getty 之前把 "OneOS" 写到 `/dev/fb0`：字形是 Caveat（OFL）的
+真实填充轮廓（`tools/gen-signature.py` 离线生成），播放时用粗墨迹沿轮廓显影，
+仿 Apple Hello / InkTrail 的效果。播放器零依赖、支持 16/32bpp framebuffer。
+详见 [开机动画原理](/docs/oneos-boot-animation/)。

@@ -4,7 +4,7 @@ title: "OneOS · 可启动模拟操作系统"
 permalink: /docs/oneos/
 ---
 
-[← 返回文档中心](/docs/) · 来源：[Languangxun/oneos](https://github.com/Languangxun/oneos) · 同步于 2026-09-25
+[← 返回文档中心](/docs/) · 来源：[Languangxun/oneos](https://github.com/Languangxun/oneos) · 同步于 2026-09-26
 
 可启动的模拟操作系统（教学 / 实验用途）。内核与基础系统复用 Debian，用户态自己写：
 
@@ -107,6 +107,7 @@ OVMF 固件 → ESP 上的 systemd-boot → EFI/Linux/oneos-*.efi（UKI）
    → 内核 + initrd → systemd（PID 1）
    → sysinit → basic → multi-user → graphical target
    → oneosd.socket 开始监听 /run/oneos/oneosd.sock
+   → oneos-splash 在 getty 前播放连笔 OneOS 开机动画（写 /dev/fb0）
    → getty 自动登录 root（tty1 / tty0 / hvc0）
 ```
 
@@ -135,7 +136,6 @@ fd 3，直接在上面 accept；本机开发时没有 systemd，就自己 bind�
 （`ONEO_DEV=1`）下被拒绝，避免误操作宿主机。
 
 ### 5. 图形桌面是怎么跑起来的
-
 Wayland 模型：
 
 - 内核的 **DRM/KMS** 管显示输出，**libinput/evdev** 管输入
@@ -166,7 +166,24 @@ Wayland 模型：
 
 `oneos session start/stop/status` 本质上就是 `systemctl start/stop/is-active oneos-session.service`。
 
-### 6. 服务与设置是怎么实现的
+### 6. 开机动画是怎么做的
+
+![开机动画](/assets/img/oneos-boot-animation.png)
+
+仿 Apple "Hello"（参考 MIT 项目 [InkTrail](https://github.com/GXeLla/InkTrail)）：
+不是描字的外轮廓，而是**保留字体的填充字形，用一根粗"墨迹"沿轮廓逐步显影**，
+所以看起来像墨水在纸上写字。OneOS 的做法：
+
+1. `tools/gen-signature.py` 用 fontTools 读取手写字体 **Caveat**（OFL），
+   把 "OneOS" 的字形展平成闭合轮廓，写入 `crates/oneos-splash/src/signature.data`
+2. `oneos-splash`（零依赖 Rust）启动时把轮廓超采样填充成一张静态掩码；
+   每帧按"已写弧长"把轮廓画成粗笔画得到墨迹掩码，两者相乘再写到 `/dev/fb0`
+3. 每字母 0.5s 顺序书写，缓动 `cubic-bezier(0.4,0,0.2,1)`，下方配细进度条
+4. `oneos-splash.service` 在 `getty.target` 之前运行，放完动画才出现登录提示
+
+完整原理、参数调整、本地预览方法见 [开机动画原理](/docs/oneos-boot-animation/)。
+
+### 7. 服务与设置是怎么实现的
 
 - `oneos service list`：调用 `systemctl list-units --output=json`，把 JSON 转成
   我们的 `ServiceInfo` 结构返回；启停前会校验单元名（拒绝 `-` 开头、空白、`/` 等），
@@ -175,7 +192,7 @@ Wayland 模型：
   修改时先做严格校验（主机名 RFC 风格、时区必须存在于 `/usr/share/zoneinfo`），
   再调用 `hostnamectl` / `timedatectl`
 
-### 7. 开发循环
+### 8. 开发循环
 
 ```sh
 make dev                     # 本机跑 oneosd（dev 模式，读写分离），执行 oneos status
@@ -198,8 +215,11 @@ mkosi.extra/            覆盖进镜像根目录（品牌/单元/桌面配置/�
 crates/oneos-proto/     协议定义与客户端库
 crates/oneosd/          守护进程
 crates/oneos/           命令行客户端
+crates/oneos-splash/    开机动画（fbdev，零依赖）
+tools/gen-signature.py  连笔路径生成器（Hershey 字体）
 scripts/dev.sh          本机开发脚本
 docs/ARCHITECTURE.md    架构细节
+docs/BOOT-ANIMATION.md  开机动画原理
 docs/ROADMAP.md         路线图
 ```
 
@@ -207,6 +227,8 @@ docs/ROADMAP.md         路线图
 
 - **桌面没起来 / 画面冻结**：`make debug` 进串口，看
   `systemctl status oneos-session` 和 `journalctl -b -u oneos-session`
+- **开机动画没出现**：确认 `ls /dev/fb0` 存在、`systemctl status oneos-splash`；
+  串口模式（无 virtio-vga）会按条件跳过，这是预期行为
 - **QEMU 窗口没弹出来**：`make run-serial` 对照；GUI 模式依赖主机 PipeWire，
   Makefile 已传 `PIPEWIRE_RUNTIME_DIR`
 - **分辨率**：改 `mkosi.conf` 的 `[Runtime] KernelCommandLineExtra=video=1920x1080`

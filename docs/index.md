@@ -4,7 +4,7 @@ title: "项目文档"
 permalink: /docs/
 ---
 
-这里汇总各项目的说明文档，内容同步自本地项目目录（已剔除密钥、密码、内网地址等敏感信息）。
+这里汇总各项目的说明文档，内容同步自本地项目目录（已剔除密钥、密码、内网地址等敏感信息）。最近一次同步：2026-09-26。
 
 ## 量化研究
 
@@ -18,5 +18,5 @@ permalink: /docs/
 
 | 项目 | 文档 |
 |---|---|
-| OneOS 模拟操作系统 | [项目说明](/docs/oneos/) · [架构设计](/docs/oneos-architecture/) · [路线图](/docs/oneos-roadmap/) |
+| OneOS 模拟操作系统 | [项目说明](/docs/oneos/) · [架构设计](/docs/oneos-architecture/) · [路线图](/docs/oneos-roadmap/) · [开机动画](/docs/oneos-boot-animation/) |
 | AI 围棋竞技场 | [使用说明](/docs/go-arena/) |

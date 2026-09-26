@@ -4,7 +4,7 @@ title: "stock-pi-mobile · 触摸屏终端"
 permalink: /docs/stock-pi-mobile/
 ---
 
-[← 返回文档中心](/docs/) · 来源：本地项目（暂未单独开源） · 同步于 2026-09-25
+[← 返回文档中心](/docs/) · 来源：本地项目（暂未单独开源） · 同步于 2026-09-26
 
 定位：随身盯盘终端（代替手机）。只做界面，行情/预测/荐股/AI 全部复用
 `stock_predict.py`（与 `stock_gui.py` 同源的生成物），不复制算法。

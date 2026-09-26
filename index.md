@@ -19,7 +19,7 @@ title: 首页
     </article>
 
     <article class="project-card reveal">
-      <header class="card-top"><h3>stock-analyzer</h3><span class="tag">v6.1.4</span></header>
+      <header class="card-top"><h3>stock-analyzer</h3><span class="tag">v6.1.5</span></header>
       <p>基于历史形态相似度匹配 + 多维融合 + 三档组合策略的 A 股短线统计研究工具。</p>
       <div class="card-links"><a href="https://github.com/Languangxun/stock-analyzer">源码</a><a href="/docs/stock-analyzer/">文档</a><a href="/docs/stock-analyzer-architecture/">架构</a></div>
     </article>
@@ -33,7 +33,7 @@ title: 首页
     <article class="project-card reveal">
       <header class="card-top"><h3>OneOS</h3><span class="tag">Rust · mkosi</span></header>
       <p>可启动的模拟操作系统（教学 / 实验用途）：复用 Debian 内核，用户态自研，mkosi 构建 UEFI 镜像。</p>
-      <div class="card-links"><a href="https://github.com/Languangxun/oneos">源码</a><a href="/docs/oneos/">文档</a><a href="/docs/oneos-architecture/">架构</a></div>
+      <div class="card-links"><a href="https://github.com/Languangxun/oneos">源码</a><a href="/docs/oneos/">文档</a><a href="/docs/oneos-architecture/">架构</a><a href="/docs/oneos-boot-animation/">开机动画</a></div>
     </article>
 
     <article class="project-card reveal">
