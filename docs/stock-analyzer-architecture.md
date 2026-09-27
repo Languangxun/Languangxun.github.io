@@ -7,7 +7,8 @@ permalink: /docs/stock-analyzer-architecture/
 [← 返回文档中心](/docs/) · 来源：[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer) · 同步于 2026-09-27
 
 > **版本 v6.1.4　更新于 2026-09-25**
-> 配套：《README.md》（回测报告与四口径结果）、`reports/回测复核报告_20260913.md`（审计报告）。
+> 配套：《README.md》（用户向：功能/快速开始/回测摘要/数据）、`CHANGELOG.md`（版本变更史）、
+> `reports/回测复核报告_20260913.md`（审计报告）。
 > 本文只讲两件事：**这套东西的架构**、**每个环节用的什么算法**。历史版本（v3.2/v3.3）的架构描述已被本文取代。
 > 2026-09-25：**ai-quant 拆分独立仓库**（<https://github.com/Languangxun/ai-quant>，公开）——
 > 模拟盘/决策链/状态页（6 图 + 休市日历）/备份均移出本仓库；第六节改写为**对接接口 + CLI 同源回测口径**。
@@ -49,7 +50,7 @@ permalink: /docs/stock-analyzer-architecture/
 | `factor_lab/` | 因子级消融框架（21 原子因子、**面板窗口 2000 交易日**（2026-09-25 由 1000 提升）、2^21 穷举、BH-FDR 过拟合治理）+ 筹码特征；**2000 日全库面板（1431 只）结论：top 1 万组合全过 BH-FDR、训练/验证相关 0.869、WF 10 折 OOS IC +0.032（9 折正），稳定因子 量能/板块/布林带** |
 | `plugins/` | 插件体系（`plugins/api.py` 暴露受控 API，`trade_log.py` 做交易记录与账户联动） |
 | `research/` | 回测 JSON/MD 产物；`research/legacy/` 为 v2.x→v4.0.1 归档，`research/legacy/results/` 收纳历史脚本输出 |
-| `reports/` | 生成类报告：数据清洗报告（`data_clean.py` 输出）、回测复核审计报告、代码审查 |
+| `reports/` | 生成类报告：数据清洗（`清洗报告_*.md`）、复权体检（`复权体检_*.md`）、数据异常（`数据异常报告_*.md`）、回测复核审计、代码审查 |
 | `dist/` | 发布包产物（`stock-analyzer-client-*.zip` / `research_v*.zip`），不入库 |
 | `stock_web.py` / `pi_stock_web.py` | Web 端两个变体（弱化独立实现，见第五节） |
 
@@ -302,11 +303,15 @@ MACD 1.1、**MA趋势 1.2**（MA20/60 多头状态，v3.3 全A实证 IC 0.228）
   均本/获利比例与同花顺一致）。
 - 布局：非紧凑屏右列按 `CFG.CHIP_W_RATIO=0.17` 加宽（上限 30%），**基线在左**
   （K线区右缘）、柱向右生长（同花顺同向），最右留 `CHIP_AXIS_STRIP=36px` 价格条
-  （十字光标价格标签固定在此、横线延伸过筹码列）；实心矩形（柱高≈桶距连片），
+  （十字光标价格标签固定在此、横线延伸过筹码列）；**细横条**（柱高≈0.5×桶距、
+  上限 3.5px，同花顺式留间隙；热修⑬ 由连片实心矩形改回），
   现价下方红/上方绿；BOLL 图例移到绘图区右缘；紧凑屏窄列（strip=6）。
 - 桶数 `CFG.CHIP_NBIN=360`；信号引擎（chip_snapshots/_chip_feats_py）不随此处变化。
 - **支/压叠加层级（v6.1.5 热修⑨）**：支撑/压力虚线移到 K线/信号之后绘制（压在最上层，
   不再被筹码柱盖住），标签加 `PANEL_BG` 底色框 + 线色描边（密集筹码上也可读）。
+- **标签不遮峰（v6.1.5 热修⑫）**：筹码柱宽度先减去标签占位 `lab_reserve`
+  （按「支/压 xx.xx」实测字宽 + 12px，右侧才排标签），标签区与筹码柱完全错开，
+  峰尖/最厚带完整可见（此前柱体一直画到价格条左侧、被黑底标签压住）。
 
 ### 3.6 事件回测引擎（单股，`_bt_events` / `backtest_signals`）
 T 日收盘信号 → **T+1 收盘成交**；**ATR(14) 止损** + **移动止盈**（最高价突破 `entry×trail_trigger` 后止损上移到 `最高价×trail_ratio`）；
@@ -493,10 +498,10 @@ stock_gui.py（引擎：APP_VERSION / tier_eval.phase_anns / tier_picks_stats.re
         │                picks_returns / benchmarks / equity_curves
         │                —— 箱线图与表格的数据源）
         └─ charts/*.svg（相位箱线 / 逐笔箱线 / 总收益柱状 / 逐笔均值柱状）
-   └─ 同时写 research/v61_report*.{json,md} 最新副本 ──▶ README 第三节表格
-   └─ 数字核验脚本（README ↔ JSON 逐项比对，须 0 不一致）
+   └─ 同时写 research/v61_report*.{json,md} 最新副本 ──▶ README「回测报告」摘要表
+   └─ 数字核验脚本（README/报告 ↔ JSON 逐项比对，须 0 不一致）
 ```
-- README 第三节的每个数字都来自回测目录（及其根目录副本）；
+- README「回测报告」摘要表的每个数字都来自回测目录（详表在 `research/v61_report.md`）；
 - 数据口径变动（如 `adjust` 重定基）会让同配置数字小幅漂移 → **重跑报告并同步 README**；
 - **产物版本化（2026-09-26）**：每次回测自动建 `backtest_v{APP_VERSION}_{YYYYMMDD_HHMMSS}_{segment}[_tag]/`
   文件夹，报告/明细表/图表/元数据全在里面；`--run-dir` 可指定目录、`--out` 指定 research 根；
@@ -600,7 +605,9 @@ ai-quant 实盘候选默认按市值前 120 只扫描，与该结论一致；
 
 | 版本 | 主要变更 |
 |---|---|
-| **v6.1.5 热修⑪**<br>（2026-09-27） | **清洗程序防截断 + 降误报 + 截断修复 + 复权口径全链切换**：`data_clean.py` 迁移深度改 `max(库内根数, --depth=2400)` 按需翻页（旧版固定 2 页 ≤1600 根，热修⑩ force 修复把约 370 只长历史股截断、全库少 28.2 万根），新增 `keep_head/keep_tail` 防缩水守卫（`--allow-shrink` 才可覆盖）；扫描判定与 `stock_gui._bars_anomalous` 完全同规则（新股前10根/停牌复牌/现名回溯ST/ETF折算/指数豁免），越界 779→59 只、low_price 40→0、停牌 1316→41，新增孤立代码与北交所停更统计，扫描 238s→40s；新增 `--repair`（GUI 数据工具「截断修复」）重拉浅历史；新增 `--check-adj`「复权失真体检」检出腾讯 hfq 为分段仿射（浦发 0.63/茅台 0.82/申华 1.75），随后**全链切换**为「腾讯不复权 × 新浪累计复权因子」真乘法后复权（`stock_gui._fetch_tencent_mul/_bf_fetch_one`、`backfill_full.py`、`sync_adjust.py`、`data_clean._hfq_mul`；ETF/LOF 退 qfq，指数用不复权），全库 `--all-adj --force` 重迁 7105 只；旧口径回测/因子/策略缓存需重跑。2.5 节与 `reports/数据异常报告_20260927.md` 更新 |
+| **v6.1.5 热修⑬**<br>（2026-09-27，版本收尾） | **筹码峰柱改细横条**：柱高由 `≈1.15×桶距、上限 8px`（连片实心楔形，视觉过粗）改为 **`0.5×桶距、上限 3.5px`**（同花顺式细条+间隙），峰形更清晰；支/压标签预留宽度保持不变。3.5 节更新；版本收尾 tag `v6.1.5` |
+| **v6.1.5 热修⑫**<br>（2026-09-27） | **筹码峰标签遮峰修复 + 文档规范化 + 新口径回测重跑**：①K线图「支/压」标签（黑底框）原右对齐到价格条左侧，会压住筹码峰最厚带/峰尖——现筹码柱先为标签预留宽度（`lab_reserve`，标签区与柱体完全错开，仍是最后绘制不被柱体盖住）；②README 重构为**用户向**（功能/快速开始/回测摘要/数据/局限 + 文档索引），历史变更流水迁入新增 `CHANGELOG.md`（`AGENTS.md` 约定同步改为写 CHANGELOG）；③数据层切换新浪因子乘法口径后全量重跑标准回测（全期 118s / 样本外 / 强势段，四口径×三档），README「回测报告」同步新数字，旧 hfq 仿射口径数字全部作废。3.5/4.2 节更新 |
+| **v6.1.5 热修⑪**<br>（2026-09-27） | **清洗程序防截断 + 降误报 + 截断修复 + 复权口径全链切换**：`data_clean.py` 迁移深度改 `max(库内根数, --depth=2400)` 按需翻页（旧版固定 2 页 ≤1600 根，热修⑩ force 修复把约 370 只长历史股截断、全库少 28.2 万根），新增 `keep_head/keep_tail` 防缩水守卫（`--allow-shrink` 才可覆盖）；扫描判定与 `stock_gui._bars_anomalous` 完全同规则（新股前10根/停牌复牌/现名回溯ST/ETF折算/指数豁免），越界 779→59 只、low_price 40→0、停牌 1316→41，新增孤立代码与北交所停更统计，扫描 238s→40s；新增 `--repair`（GUI 数据工具「截断修复」）重拉浅历史；新增 `--check-adj`「复权失真体检」检出腾讯 hfq 为分段仿射（浦发 0.63/茅台 0.82/申华 1.75），随后**全链切换**为「腾讯不复权 × 新浪累计复权因子」真乘法后复权（`stock_gui._fetch_tencent_mul/_bf_fetch_one`、`backfill_full.py`、`sync_adjust.py`、`data_clean._hfq_mul`；ETF/LOF 退 qfq，指数用不复权），全库 `--all-adj --force` 重迁**完成 7103/7105**（2 只防缩水保留），完工 `--check-adj` 300 只**失真 0**、全库扫描结构异常 0/越界 10 只；旧口径回测/因子/策略缓存需重跑。2.5 节与 `reports/数据异常报告_20260927.md` 更新 |
 | **v6.1.5**<br>（2026-09-26） | **版本 6.1.5 + 回测产物版本化 + 全样本重跑 + 本地网页仪表盘**：新增 `APP_VERSION=6.1.5`（关于页/AI UA/回测目录共用）；`backtest_v61.py` 每次运行自动建 `research/backtest_v<版本>_<时间戳>_<区间>/`（report/run_meta/tables CSV 含 `equity_curves.csv`/charts SVG），并在 research 根保留最新副本；`tier_eval` 新增相位平均净值曲线；新增 `v61_dashboard.py` → 自包含 `research/dashboard.html`（研究收益曲线/指标对比/箱线 + GUI 单股回测，file:// 直开）；GUI 导出新增 JSON 并留档 `research/gui_backtests/`；全样本四口径重跑（数据截至 2026-09-24，109s，10 图/6 表）。4.1/4.2/4.4 节更新 |
 | **v6.1.5 热修①**<br>（2026-09-26） | **工具→信号胜率面板显示修复**：`_draw_curve` 重绘前 `cv.configure(bg=BG)` 跟随主题（修复切主题后画布保持旧底色、验证区变"白块"/黑底的问题），验证集底纹改 `AXIS_TXT`+`stipple="gray12"`（三种主题通用）；`run_bt` 结束 `yview_moveto(0)` 结果文本回顶，直接展示全期/训练/验证三段。3.6 节更新 |
 | **v6.1.5 热修②**<br>（2026-09-26） | **消融选型加"近端子窗一致性"**：`_ablation_ranks` 抽出打分（train/recent 两窗口），`_ablation_recent` 取最近 250 根回测，`pick_ablation_consistent` 要求全窗前 25%（下限3）∩近窗前 25%（下限2），交集内取全窗最优；交集为空回退该档「多维评分」（防旧 regime 选型在风格切换后沉默，实测 688012 由 RSI·稳健回退为多维评分）；`run_ablation` 输出 `pick_notes` + 日志；全库研究脚本 `backtest_strategy_ablation.py` 同步；策略缓存 5 日不变。2.7/3.8 节更新 |
