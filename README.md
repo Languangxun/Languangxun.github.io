@@ -10,8 +10,10 @@
 - 首屏「Monologue」书写动画：`_includes/monologue-ink.svg`，由 [InkTrail](https://github.com/GXeLla/InkTrail)（MIT）的 Apple-like 预设（Caveat 字体）离线生成，自包含 CSS 动画
 - 版式参考 [iamreiyn/apple-website-clone](https://github.com/iamreiyn/apple-website-clone)（MIT）的 apple.com 布局，配色改为深色
 - 项目文档：`docs/`（Markdown，带 front matter，内容同步自本地项目目录并已脱敏）
-  - ai-quant：`docs/ai-quant.md`
-  - stock-analyzer：`docs/stock-analyzer.md`、`stock-analyzer-architecture.md`、`stock-analyzer-plugin-api.md`
+  - ai-quant：`docs/ai-quant.md`；组合回测 `docs/ai-quant-backtest-{full,main,since2022,top300,top1000,mode_baoshou,mode_jiji}.md`
+  - chaodi 策略选股：`docs/chaodi-strategies.md`
+  - stock-analyzer：`docs/stock-analyzer.md`、`stock-analyzer-architecture.md`、`stock-analyzer-plugin-api.md`、`stock-analyzer-changelog.md`
+  - stock-analyzer 审查与研究：`docs/stock-analyzer-{code-review,backtest-review,overfit-check,data-report,adjust-check}.md`、`stock-analyzer-v61-report[-val|-bull].md`
   - stock-analyzer 回测报告：`docs/stock-analyzer-backtest.md`（索引）+ 每只股票 `docs/stock-analyzer-backtest-<code>.md`
   - stock-pi-mobile：`docs/stock-pi-mobile.md`
   - OneOS：`docs/oneos.md`、`oneos-architecture.md`、`oneos-roadmap.md`、`oneos-boot-animation.md`
@@ -32,8 +34,9 @@ python3 scripts/sync_docs.py --no-push     # 同步 + 本地提交，不推送
 python3 scripts/sync_docs.py --no-sources  # 只更新 stock-analyzer 回测报告
 ```
 
-- 文档镜像：`SOURCES` 表把各项目 README/ARCHITECTURE 等映射到 `docs/`，保留目标文件的
-  front matter，自动脱敏（家目录路径、内网 IP、密码/密钥）并把相对图片复制到 `assets/img/`
+- 文档镜像：`SOURCES` 表把各项目 README/ARCHITECTURE/报告等映射到 `docs/`，保留目标文件的
+  front matter，自动脱敏（家目录路径、内网/Tailscale IP 与域名、手机号、邮箱、密码/密钥）
+  并把相对图片复制到 `assets/img/`
 - 回测报告：读取 `stock-analyzer/research/gui_backtests/gui_*.json`（每只股票最新一次
   GUI「导出回测」），生成指标/信号质量页面与净值+回撤 SVG，并刷新 `docs/stock-analyzer-backtest.md` 索引
 - 内容无变化时保留原「同步于」日期，不会产生空提交

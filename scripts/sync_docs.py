@@ -33,6 +33,8 @@ DOCS = SITE / "docs"
 ASSETS = SITE / "assets" / "img"
 ANALYZER = DESKTOP / "stock_predict"
 GUI_BACKTESTS = ANALYZER / "research" / "gui_backtests"
+AI_QUANT = DESKTOP / "ai-quant"
+AI_QUANT_BACKTESTS = AI_QUANT / "backtest" / "results"
 
 TODAY = dt.date.today().isoformat()
 BACKTEST_PAGE = "stock-analyzer-backtest.md"
@@ -64,7 +66,79 @@ SOURCES = [
         "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
     },
     {
-        "src": DESKTOP / "ai-quant" / "README.md",
+        "src": ANALYZER / "CHANGELOG.md",
+        "dst": "stock-analyzer-changelog.md",
+        "project": "stock-analyzer",
+        "title": "stock-analyzer · 变更日志",
+        "permalink": "/docs/stock-analyzer-changelog/",
+        "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
+    },
+    {
+        "src": ANALYZER / "reports" / "代码审查.md",
+        "dst": "stock-analyzer-code-review.md",
+        "project": "stock-analyzer",
+        "title": "stock-analyzer · 代码审查",
+        "permalink": "/docs/stock-analyzer-code-review/",
+        "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
+    },
+    {
+        "src": ANALYZER / "reports" / "回测复核报告_20260913.md",
+        "dst": "stock-analyzer-backtest-review.md",
+        "project": "stock-analyzer",
+        "title": "stock-analyzer · 回测复核报告",
+        "permalink": "/docs/stock-analyzer-backtest-review/",
+        "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
+    },
+    {
+        "src": ANALYZER / "reports" / "GUI过拟合自检.md",
+        "dst": "stock-analyzer-overfit-check.md",
+        "project": "stock-analyzer",
+        "title": "stock-analyzer · 过拟合自检",
+        "permalink": "/docs/stock-analyzer-overfit-check/",
+        "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
+    },
+    {
+        "src": ANALYZER / "reports" / "数据异常报告_20260927.md",
+        "dst": "stock-analyzer-data-report.md",
+        "project": "stock-analyzer",
+        "title": "stock-analyzer · 数据异常报告",
+        "permalink": "/docs/stock-analyzer-data-report/",
+        "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
+    },
+    {
+        "src": ANALYZER / "reports" / "复权体检_20260927.md",
+        "dst": "stock-analyzer-adjust-check.md",
+        "project": "stock-analyzer",
+        "title": "stock-analyzer · 复权体检",
+        "permalink": "/docs/stock-analyzer-adjust-check/",
+        "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
+    },
+    {
+        "src": ANALYZER / "research" / "v61_report.md",
+        "dst": "stock-analyzer-v61-report.md",
+        "project": "stock-analyzer",
+        "title": "stock-analyzer · v6.1.5 回测报告（full）",
+        "permalink": "/docs/stock-analyzer-v61-report/",
+        "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
+    },
+    {
+        "src": ANALYZER / "research" / "v61_report_val.md",
+        "dst": "stock-analyzer-v61-report-val.md",
+        "project": "stock-analyzer",
+        "title": "stock-analyzer · v6.1.5 回测报告（val 样本外）",
+        "permalink": "/docs/stock-analyzer-v61-report-val/",
+        "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
+    },
+    {
+        "src": ANALYZER / "research" / "v61_report_bull.md",
+        "dst": "stock-analyzer-v61-report-bull.md",
+        "project": "stock-analyzer",
+        "title": "stock-analyzer · v6.1.5 回测报告（bull 强势段）",
+        "permalink": "/docs/stock-analyzer-v61-report-bull/",
+        "origin": "[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer)",
+    },
+    {
+        "src": AI_QUANT / "README.md",
         "dst": "ai-quant.md",
         "project": "ai-quant",
         "title": "ai-quant · 量化研究与模拟交易",
@@ -111,7 +185,35 @@ SOURCES = [
         "permalink": "/docs/stock-pi-mobile/",
         "origin": "本地项目（暂未单独开源）",
     },
+    {
+        "src": DESKTOP / "chaodi_strategies" / "README.md",
+        "dst": "chaodi-strategies.md",
+        "project": "chaodi-strategies",
+        "title": "chaodi 策略选股 · 通达信语义",
+        "permalink": "/docs/chaodi-strategies/",
+        "origin": "本地项目（暂未单独开源）",
+    },
 ]
+
+for _stem, _label in [
+    ("full", "全样本"),
+    ("main", "全样本 · 主线"),
+    ("since2022", "2022 起"),
+    ("top300", "股票池 Top300"),
+    ("top1000", "股票池 Top1000"),
+    ("mode_baoshou", "保守档"),
+    ("mode_jiji", "激进档"),
+]:
+    SOURCES.append(
+        {
+            "src": AI_QUANT_BACKTESTS / f"stock_backtest_{_stem}.md",
+            "dst": f"ai-quant-backtest-{_stem}.md",
+            "project": "ai-quant",
+            "title": f"ai-quant · 组合回测（{_label}）",
+            "permalink": f"/docs/ai-quant-backtest-{_stem}/",
+            "origin": "[Languangxun/ai-quant](https://github.com/Languangxun/ai-quant)",
+        }
+    )
 
 FRONT_MATTER_RE = re.compile(r"\A---\n.*?\n---\n?", re.S)
 H1_RE = re.compile(r"\A#\s+[^\n]*\n+")
@@ -150,6 +252,23 @@ def sanitize(text: str) -> str:
         "<内网IP>",
         text,
     )
+    text = re.sub(
+        r"\b100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])(?:\.\d{1,3}){2}\b",
+        "<内网IP>",
+        text,
+    )
+    text = re.sub(
+        r"\b[a-zA-Z0-9][a-zA-Z0-9-]*(?:\.[a-zA-Z0-9-]+)*\.ts\.net\b",
+        "<Tailscale域名>",
+        text,
+    )
+    text = re.sub(
+        r"(?i)[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.(?:com|cn|net|org|io|me|top|xyz|tech|dev|app|edu|gov|co)\b",
+        "<邮箱>",
+        text,
+    )
+    text = re.sub(r"(?<!\d)1[3-9]\d{9}(?!\d)", "<手机号>", text)
+    text = re.sub(r"((?:密码|口令)\s*)`[^`\n]+`", r"\1***", text)
     text = re.sub(
         r"(?im)^([ \t]*(?:password|passwd|token|api[_-]?key|secret)[ \t]*[:=])[ \t]*\S+.*$",
         r"\1 ***",

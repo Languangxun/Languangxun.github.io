@@ -1,0 +1,485 @@
+---
+layout: page
+title: "stock-analyzer · 代码审查"
+permalink: /docs/stock-analyzer-code-review/
+---
+
+[← 返回文档中心](/docs/) · 来源：[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer) · 同步于 2026-09-27
+
+审查范围：`stock_gui.py`（算法源）、`stock_predict.py`（生成物）、`stock_web.py` / `pi_stock_web.py`、`build_cli.py`、`ai-quant/`、根目录一次性回测脚本与重复副本。  
+原则：只列**需要改**的问题，不列纯风格。优先级：P0 先改、P1 应改、P2 建议改。  
+> **2026-09-26 二轮专项复审（过拟合 / 前视偏差）见文末**，覆盖数据层、`factor_lab/`、`backtests/`、Web 版与研究缓存。
+
+---
+
+## P0 · 安全与正确性（先改）
+
+### 1. API Key 明文落盘，且曾可能进入工作副本
+
+| 位置 | 问题 |
+|---|---|
+| `stock_gui.ini` `[deepseek] api_key` | 明文保存 DeepSeek Key。`.gitignore` 已忽略 ini，**本地文件仍在**。 |
+| `ai-quant/.env` `DEEPSEEK_API_KEY` | 明文 Key。`.gitignore` 有 `.env`，**仍在工作树**。 |
+
+**要改：**
+
+- 立刻**轮换/作废**这两把 Key（本文不写出具体值）。
+- Key 只从环境变量读取，ini 只存 `api_key_set=1` 之类占位。
+- GUI 设置页不要把完整 Key 回填到输入框。
+- 确认 git 历史从未提交过 ini/env；若提交过，从历史剔除并轮换。
+
+### 2. `ai-quant` 回测几乎下不了仓（ensemble API 用错）
+
+`ai-quant/backtest/engine.py` 把当前仓位算成 **float** 再传给 `ensemble.decide(context, current)`。  
+`agent/ensemble.py` 的 `decide()` 只在 `position_of` **可调用**时读持仓，否则 `current_position = 0`。
+
+后果：目标仓位 ≥1% 永远 `BUY`，几乎从不 `SELL`；与 `sim/run.py`（传 callable）行为不一致，回测 PnL 不可信。
+
+**要改：** 与 live 一致，传 `lambda s: account.position_pct(s, navs)`。数值仅作测试兜底。
+
+### 3. 场外基金成交用 T+1 净值，不是 T 日净值（前视）
+
+`ai-quant/trading/account.py` `confirm_orders` 用确认日当天的 `navs` 算份额。  
+联接基金规则是：**T 日净值成交，T+1 确认**。用确认日净值 = 用次日涨跌给自己定价。
+
+`tests/test_otc_lifecycle.py` 把错误规则写成了断言。
+
+**要改：** 订单记下 `trade_date`；确认时查 **交易日** NAV。补测试：T+1 NAV 变化不得改变份额。
+
+### 4. 回测把「今天的教训」喂给历史日期（前视）
+
+`ai-quant/backtest/engine.py` 里 `load_lessons(5)` 永远读生产环境最新 `lessons.json`，不按 `trade_date` 截断。  
+2024 年回放能看到 2026 年复盘。
+
+**要改：** 严格 `lesson["date"] < trade_date`；纯回测默认空 lessons。
+
+### 5. `stock_gui.py` 设置页「关于/免责」缩进错位
+
+`open_settings()` 在关机按钮后结束；「关于 / 免责声明」整段写在 `_shutdown_confirm()` **方法体内**（约 8894–8913 行）。
+
+后果：
+
+- 设置窗口永远不显示免责声明。
+- 关机失败后会用未定义的 `frm`，`NameError`。
+
+**要改：** 把该段挪回 `open_settings()`，与 `frm` 同作用域。
+
+---
+
+## P1 · 交易 / 回测 / Web
+
+### 6. 决策上下文用 T 日净值盯市（模型能看到当日涨跌）
+
+`engine.build_context` / `sim/run.py` 把当日 NAV 写入 `account.total_asset`、`positions[].nav/pct`，注释却写「只看 T-1」。  
+盘后已公布时 live 也把最新净值标成 `prev_nav`。
+
+**要改：** 给模型的估值只用 `date < T` 的已公布净值；成交确认仍可用 T 净值（内部）。
+
+### 7. 集成测试与真实 API 对不上
+
+`ai-quant/tests/test_ensemble.py` 调用 `ens.decide({}, current_position=0)`，该关键字**不存在** → pytest 直接 `TypeError`。  
+`test_ensemble_all_fail_hold` 期望保持仓位 15，实现却 hardcode `target_position=0.0`。
+
+**要改：** 对齐 `position_of`；全失败 HOLD 应保留真实当前仓位。CI 里跑通测试。
+
+### 8. 多模型投票把不同标的的仓位混在一起
+
+`agent/ensemble.py` 先对所有 voter 的 `target_position` 做加权平均，再按多数票选 `target` 名字。  
+A 投银行 40%、B 投通信 10% → 可能得到「通信 ~25%」。
+
+**要改：** 先按 `target` 分组，再对该组平均仓位；或 action/标的联合投票。
+
+### 9. 现金不足会打崩整天
+
+`Executor` 按 `total_asset * target_pct` 下单；已有持仓时现金可能不够。  
+`FundAccount.subscribe()` 抛 `ValueError("现金不足")`，executor 不接，回测/模拟整天中断。
+
+**要改：** 金额向下取整到可用现金（100 元整数倍）；不足最小申购额则 `NO CHANGE`，`execute()` 永不抛出。
+
+### 10. `risk.yaml` 没接上；没有组合敞口上限
+
+`RiskManager` 写死 40%/20%。`max_daily_loss: 5`、`cooldown_days: 7` 从未读取。  
+10 只基金 × 40% = 400% 名义敞口。
+
+**要改：** 加载 yaml；`sum(position_pct) ≤ 100`（或配置上限）；实现日亏损熔断和冷却，否则删掉配置以免误信。
+
+### 11. 决策解析过松，`target_normalizer` 是死代码
+
+- `parse_decision`：`null` / `"20%"` 会 `float()` 失败 → 该 voter HOLD。
+- `NaN`：`RiskManager.check` 比较全 False → **放行**。
+- `"半导体ETF"` 不在 `FUND_MAP` 仍可下单（空 `fund_code`）。
+- `agent/target_normalizer.py` 从未被 import。
+
+**要改：** 非有限数字拒绝；clamp 到 `[0, max_position]`；必须 `normalize_target()` 且 `target in FUND_MAP`，否则 HOLD。
+
+### 12. 净值抓取失败会把整只基金从历史里抹掉
+
+`ai-quant/data/history/fetch_all.py`：ETF 失败会回退旧 `market.json`，NAV 失败则直接省略该 symbol，再 `json.dump` 覆盖 `fund_nav.json`。
+
+**要改：** merge 进旧文件；失败保留旧点；缺失过多则任务失败。
+
+### 13. NAV 日期用本机本地时区
+
+`data/fund/fund_provider.py`：`time.localtime(ts/1000)`。东财 `x` 按东八区午夜。UTC/美区机会错一天。
+
+**要改：** 固定 `Asia/Shanghai`（`zoneinfo`）。
+
+### 14. 夜间复盘写到错误目录
+
+`scripts/night_review.py` 写 `~/ai-quant/memory/daily/...`，本仓库实际是 `ai-quant/memory/daily`。Windows 上永远找不到文件。
+
+**要改：** `Path(__file__).resolve().parents[1] / "memory" / "daily"`。
+
+### 15. 两套并行栈，旧栈一跑就崩
+
+| 问题 | 位置 |
+|---|---|
+| `from trading.account import Account`，真实类是 `FundAccount` | `agent/controller.py` |
+| `executor.execute(decision)` 缺 `navs` / `trade_date` | 同上 |
+| `create_decision(..., position_change=...)`，参数名是 `target_position` | `backtest/llm_runner.py` |
+| `abs(decision.position_change)`，常为 `None` | `agent/risk.py` |
+| `models/ensemble.py` 空壳，真逻辑在 `agent/ensemble.py` | |
+| `VectorMemory.search` 读 `item["trade"]`，存储是 `text`/`time` | `memory/vector.py` vs `otc_memory.py` |
+
+**要改：** 删除或明确禁用旧路径（controller / llm_runner / agent/risk / 空 ensemble）。只留 `sim.run` + `SimEngine` 一条。
+
+### 16. 配置路径依赖 CWD
+
+`models/config.py`、`main.py`：`open("config/model.yaml")`。不在 `ai-quant` 目录启动就挂。
+
+**要改：** 相对包根解析（同 `agent/config_loader.py`）。
+
+### 17. Web 端开放代理 + XSS + 无鉴权
+
+`stock_web.py` / `pi_stock_web.py`：
+
+- `ThreadingHTTPServer(("0.0.0.0", port))`，日志却写 `127.0.0.1`。
+- `/api?code=` 把任意代码转到腾讯等行情源（局域网开放代理）。
+- `/text` 把 `code` 拼进 HTML：`img src="/svg?code=' + code`，未转义 → XSS。
+- 无频率限制，可打爆上游。
+
+**要改：** 默认绑 `127.0.0.1`（或明确 `--bind`）；`html.escape(code)`；校验 6 位代码；加简单限流。日志与真实 bind 地址一致。
+
+### 18. 质量过滤用「10% 涨跌停」一刀切
+
+`CFG.MAX_DAILY_CHANGE = 10.0`。创业板/科创 20%、北证 30%、ST 5% 会被误杀或漏杀。清洗层已按板块分段，匹配层没有。
+
+**要改：** 复用清洗那套「当日允许涨跌停 + 缓冲」，或按代码前缀分段。
+
+### 19. 文档 / 常数互相打架
+
+| 文档/代码 | 现状 |
+|---|---|
+| `ARCHITECTURE.md` | 仍写 v3.3、`W=10`、L3 权重 0.1 |
+| `CFG.W_WINDOW` | 已是 20 |
+| `CFG.ENABLE_L3` | 默认 False |
+| README v4.0.2 | L1 全市场 IC **为负**；CFG 注释仍写 W20 IC+0.016 |
+
+**要改：** 更新 `ARCHITECTURE.md` 到 v4；注释与全市场实证对齐，避免按过时小样本调参。
+
+### 20. `stock_predict.py` 与 GUI 可能漂移
+
+架构约定：算法只改 `stock_gui.py`，再跑 `build_cli.py`。  
+`ai-quant/stock_predict.py`、`ai-quant/scripts/cli/stock_predict.py` 是更旧的拷贝。Pi 若跑这些副本，会与 GUI 行为分叉。
+
+**要改：** 改算法后必须 `python build_cli.py`；下游只部署生成物；删或改名为 archive 的旧拷贝。
+
+---
+
+## P2 · 工程债（建议改）
+
+### 21. 重复与垃圾文件（应删或归档）
+
+- `stock_gui - 副本.py`：过期整文件副本。
+- `pi_standalone.py`：又一份巨型 GUI/算法快照。
+- 根目录一次性脚本：`backtest_*.py`、`sweep_risk.py`、`backfill_*.py` 与主程序功能重叠。
+- `*.txt` 研究日志、`*_results.json` 应进 `research/`，不要堆仓库根。
+
+### 22. 单文件 9000 行不可维护
+
+`stock_gui.py` 把缓存、HTTP、指标、匹配、v4 Walk-Forward、Tk GUI 揉在一起。`build_cli.py` 靠字符串锚点切片，锚点一改生成物就坏。
+
+中期应拆：`cache / fetch / signals / v4 / gui`，CLI 用 import 而不是切源码。短期至少给 `build_cli.py` 加锚点存在性检查和生成后语法检查。
+
+### 23. 日历与特征错误
+
+- `TradingCalendar` 节假日默认空：春节/国庆当交易日。
+- `TechnicalFeature.volatility` 对**价格**做全样本 stdev，不是收益率、也不是滚动窗口。
+- `len < n` 时 MA 返回末价，趋势会假 `up`/`down`。
+
+### 24. 其它小坑
+
+- `pending` 确认后不清理，状态文件只增不减。
+- 回测里 `Trade.timestamp = datetime.now()`，不是 `trade_date`。
+- `watchlist.yaml` 基金代码为空，真正映射在 `FUND_MAP`。
+- 余弦相似度可能除零（`otc_memory.py` / `vector.py`）。
+- `DeepSeekVoter` fallback 会永久改 `self.client.model`，后续都走便宜模型。
+- `nav_anomaly` / `sim/run.py` 大片 `except Exception: pass`，缺数据看起来像「市场平静」。
+- Web `/api` 失败仍 HTTP 200 + `{"error":...}`，前端不好区分。
+- 回测佣金/印花税为 0（`_V4_COST`），README 已声明；若对外展示应同时报「含成本」口径。
+- `stock_web` 与 GUI 算法弱同步：Web 仍 W=10、仅 L1，ARCHITECTURE 已说明，但页面应标明「弱化版」。
+- 无 CI：至少跑 `ai-quant/tests` + `python -m py_compile stock_gui.py`。
+
+---
+
+## 建议改动顺序
+
+1. **立刻**：轮换 DeepSeek Key；ini/env 不再存明文。
+2. **ai-quant 回测可信**：`decide(position_of=...)`；成交用 T 日净值；lessons 按日截断；context 用 T-1 净值。
+3. **修 GUI**：免责声明缩进；设置页能看见。
+4. **风控**：yaml 生效、总仓位 ≤100%、现金不足不崩、解析拒绝 NaN/未知标的。
+5. **Web**：绑定地址、转义、限流。
+6. **删重复**：副本 py、旧 CLI、空模块；`build_cli.py` 作为唯一生成路径。
+7. **文档**：`ARCHITECTURE.md` 对齐 v4 与全市场 IC 结论。
+8. **测试**：修好 `test_ensemble.py` / OTC 成交日，接入 CI。
+
+---
+
+*本清单基于 2026-09-12 工作区静态审查，未跑全量回测。不构成投资建议。*
+
+---
+
+## 处理状态（v6.1.5 热修⑦，2026-09-26）
+
+> 重要前提：`ai-quant/` 已于 2026-09-25 拆分为独立仓库
+> （[Languangxun/ai-quant](https://github.com/Languangxun/ai-quant)），
+> 与本仓 GUI/Web/构建无关的条目（P0-2~4、P1-6~16、P2-23/24 大部）已不在本仓，
+> 需在独立仓库处理。以下只列本仓范围。
+
+| 条目 | 状态 | 说明 |
+|---|---|---|
+| P0-1 API Key 明文 | 部分/流程 | 本仓 `stock_gui.ini` 在 `.gitignore`（不入库）；GUI 设置页已不回填完整 Key（`ENV_API_KEY` 优先）。**Key 轮换需用户在平台侧操作**。 |
+| P0-5 免责声明缩进 | 已修（早前） | 「关于/免责」已在 `open_settings()`（row 28~29），不在 `_shutdown_confirm`。 |
+| P1-17 Web 安全 | 已具备 | `--bind` 默认 `127.0.0.1`；`html.escape` 全量转义；`re.fullmatch(r"(sh\|sz\|bj)\\d{6}")` 校验；`_rate_limited` 限流；启动日志打印真实 bind。 |
+| P1-18 涨跌停一刀切 | 已修 | 死常数 `CFG.MAX_DAILY_CHANGE` 删除；清洗/回测统一板块口径（`_limit_pct` / `_v4_limit_pct`）。 |
+| P1-19 文档/常数打架 | 已修 | ARCHITECTURE 已对齐 v6.1.5；`W_WINDOW` 设置真实生效（热修⑦）；L1 注释改为"小样本扫描 W20 略优 + 全市场样本外增量≈0，勿据样本内 IC 调参"。 |
+| P1-20 `stock_predict.py` 漂移 | 已修 | 算法改动后 `build_cli.py` 重新生成；本轮又加锚点存在性检查 + 生成前语法校验。 |
+| P2-21 重复文件 | 已清 | 根目录无 `*- 副本.py`；`pi_standalone.py` 归档 `research/legacy/`；一次性脚本收敛到 `backtests/`。 |
+| P2-22 单文件不可维护 | 短期已做，拆分不做 | `build_cli.py` 锚点检查 + 语法校验；多文件拆分按 legacy 报告 #13 的结论不做。 |
+| P2-24 其他小坑（本仓部分） | 见内联 | `/api` 失败返回 HTTP 200（前端按 `error` 字段处理，保留）；`stock_web` 标注为弱化版（ARCHITECTURE 第五节）。 |
+
+**仍需用户操作**：DeepSeek/OpenAI Key 轮换（若曾用过本地明文 Key）；新增 CI 可选
+（当前手动跑 `py_compile` + `test_settings.py`）。
+
+---
+
+# 二轮专项复审：过拟合与前视偏差（2026-09-26）
+
+> 触发：热修⑥⑦ 修复「消融近端门槛误用验证段」「样本窗口重叠」后，对其余链路
+> （数据层复权与回填、`factor_lab/`、`backtests/`、Web 版、v4 研究缓存）再做一次专项走查。
+> 方法：静态核对 + 只读抽样（SQLite 只读、按 web 逻辑复刻因子计算），**未跑改动**。
+> 严重度：**P0** 直接污染全库数据/主结论；**P1** 结论可信度实质受损；**P2** 口径漂移/披露/工程债。
+
+## 0. 结论摘要
+
+- GUI 主算法链（形态匹配 → 多维评分/消融选型 → v4 Walk-Forward → 三档组合回测）在热修⑥⑦后
+  **本轮未再发现新的前视**；首轮修复项（近端门槛、样本窗口去重、morning view、purge+embargo）复核通过。
+- 真正会让数字与实盘口径不一致的问题集中在「库里存什么」和「另外几套实现」：
+  1. **全库回填按钮写的是腾讯 qfq（前复权）**，会覆盖 hfq 库 —— P0；
+  2. **三档回测用今天的复权系数缩放历史绝对价/成交额**（门槛含未来分红信息）—— P0；
+  3. **`factor_lab` 股票池用当前元数据过滤，2018 年后 229 只退市股全部被排除**（幸存者偏差）—— P0；
+  4. **Web 版仍 W=10 且样本窗口可重叠/可与当前窗重叠**（热修⑦只改了 GUI）—— P1；
+  5. **`research/v4_preds.pkl`、`factor_lab/panel.npz` 是 W=10 时代缓存**，默认被 v5 系列脚本引用 —— P1。
+- 首轮已知的「研究脚本样本内选参」旧账仍然成立，本轮补充 3 个具体点（S3 留出门槛、重叠窗 WF、`sweep_risk` 网格维度失效）。
+
+## 1. P0
+
+### P0-1 全库回填脚本用腾讯 qfq 覆盖 hfq 库（数据层污染，GUI 按钮直连）
+
+| 位置 | 事实 |
+|---|---|
+| `backfill_full.py:60-72` | `_tx_fetch` 请求 `...,day,,,{count},qfq`，读 `qfqday` 字段（前复权）；`_fetch_one:89-106` 以腾讯为主源（≥300 根即返回），东财 hfq 仅兜底 |
+| `backfill_full.py:3-8` | 文件头却写「主源：东财 push2his（一次请求拉全量前复权）」——docstring 与代码相反 |
+| `backfill_full.py:116-127` | `_store` 无重叠一致性校验、不调用 `_sync_adjust`，`INSERT OR REPLACE` 直写 `daily_bars` |
+| `stock_gui.py:13395-13406` | GUI「工具→数据工具→全库日K回填」直接 spawn 该脚本 |
+
+- 对照：集成版 `backfill_full_market`（`stock_gui.py:1863` 起）走 `_fetch_remote_rows`（腾讯 hfq / 东财 `fqt=2`）
+  并 `_sync_adjust`；`data_clean.py:5-14` 已把腾讯/东财 qfq 定义为历史失真根因。两条路径产出不同口径。
+- 影响：执行一次按钮，最近约 1600 根被替换为前复权口径；分红送转后整段历史重定基；
+  与更早的 hfq 段形成接缝。`_bars_anomalous`（`stock_gui.py:972-984`）对**孤立**大跳变放行
+  （本意是放行 ETF 折算），接缝处的单个大跳变未必拦得住；且 `backfill_full._store` 绕过全部清洗。
+  消融 / v4 / tier 读同一库，全受污染。
+- 修复：`_tx_fetch` 改 `hfq`/`hfqday`；`_store` 增加与现有 hfq 的重叠校验或调用 `_sync_adjust`；
+  GUI 按钮改调集成版 `backfill_full_market`。
+
+### P0-2 三档回测：历史绝对价/成交额门槛被「今天」的复权系数污染（前视）
+
+- `stock_gui.py:8437-8458`：`tier_load_panel` 用 `adjust.k` 把 hfq 缩放成以**今天**为锚的乘法前复权
+  `C(t) = raw(t)·A(t)/A(now)`；`k` 由 `sync_adjust.py:63-112` 用最新日 `raw/hfq` 配对算出
+  （DB 实测 `k` 中位 0.583、p1=0.023）。
+- `stock_gui.py:8504-8509` `amt = V*C`、`8621-8623` `C>_TIER_MIN_PRICE(1.0)`、
+  `amt20>=_TIER_MIN_AMOUNT(3e5)`（=3000 万）、`8693` 整手取整，都在历史日 t 使用了 `A(now)`
+  （t 之后才发生的分红/送转）。
+- 量化（只读抽样）：`sh600601` 2023-06-09 的 `C=1.948` vs 当日不复权 `raw=2.840`
+  （`A(t)/A(now)=68.6%`）——2023 年的 3000 万流动性门槛实际被抬到约 **4370 万**；`sh600519` 为 86.0%。
+- 边界：`ret20/vol20/beta/闸门` 是收益率/比值，常数 `k` 约掉，不受影响；受损的只有「可交易池/绝对价阈值」。
+  但同一回测在不同日期重跑，会因新分红改变历史池 —— **不可复现**。
+- 同类：`daily_picks` 的仙股过滤 `r[-1]['close'] >= 2`（`stock_gui.py:4009`）直接读 hfq 原值
+  （`daily_bars.close` 是后复权），不是现价口径，阈值形同虚设。
+- 修复：门槛改用 point-in-time 口径（库中保留历史复权因子，或用成交额/流通市值等不随 k 变化的字段）；
+  至少在文档标注「绝对价/流动性门槛按当前复权锚、历史池不可复现」，并修 `daily_picks` 的现价判断（乘 `k`）。
+
+### P0-3 factor_lab 股票池幸存者偏差：2026 年元数据反选 2018 年样本
+
+- `factor_lab/data.py:25-45`：`list_codes(require_meta=True)` 要求 `stocks.industry` 非空；
+  `factor_lab/panel.py:225/250` 默认调用。
+- 只读 DB 证据：`daily_bars` 中最后交易日落在 2018-01-01~2026-06-01、≥400 根、主板/创业/科创的个股
+  **229 只，其 `stocks.industry` 229 只全为空**（退市/长停股没有行业快照）；`stocks` 表 7594 行中
+  4344 行 industry 为空。
+- 影响：`factor_lab` 的面板 / 单因子 IC / 枚举 / BH-FDR / 组合回测全部只含「活到 2026-09 的股票」，
+  `research/factor_lab/` 的全A 因子有效性与 Robust 因子集结论存在系统性高估。
+- 修复：代码池不要求当前 industry（退市股补行业映射或归入「未知」组）；重跑后更新结论。
+
+## 2. P1
+
+### P1-1 factor_lab L2/L3 同伴池用 2026 年市值快照定义历史分组（本轮新增）
+
+- `factor_lab/panel.py:192-220`：`_l2_worker/_l3_worker` 用 `_G["mktcap"]`（`stocks` 最新快照，
+  updated 2026-09-24/25）对同行业/跨行业 peer 按 `log(mktcap)` 距离排序；`panel.py:257-260`
+  的 `tier_of/mktcap` 同源。
+- 2018 年某股的「同市值层同伴」由 2026 年市值决定 = 前视信息（`stocks` 没有历史市值序列）。
+- 修复：用滚动市值（价格×股本）或至少用 `close` 横截面分层；无法获得时报告中把 L2/L3 因子 IC
+  降级为「含时点污染」。
+
+### P1-2 factor_lab LASSO 交叉验证同日跨折泄漏（本轮新增）
+
+- `factor_lab/validate.py:86-99`：`lasso_select` 先随机抽样（90-92），按日期 stable sort（95），
+  再 `TimeSeriesSplit(5)`（96）——没有 purge/embargo，折边界落在同一天内部。
+- 实测（full2000 面板复现）：5 折 train/test 日期交集均恰 1 天、gap=0；同日横截面样本 +
+  1 日前视标签使 CV 误差被低估 → alpha 选择偏乐观、因子多选。最终系数在训练段重拟合（99 行），
+  验证段报告不被直接污染。
+- 修复：按日期切分（`GroupKFold` 按 `date_ord`）+ purge = 标签 horizon。
+
+### P1-3 backtest_v5_cross_section：用当日收盘涨跌停掩码约束当日开盘成交（确定前视）
+
+- `backtests/backtest_v5_cross_section.py:92-99`：`limit_up/limit_dn` 由 `ret1=close1/close0-1`
+  派生（T 日收盘后才知道）；
+- `sim:157` 到期卖出用 `not M["limit_dn"][ks,t]`、`171-172` 入场用 `~M["limit_up"][:,t]`；
+- 默认 `--entry open --exit open`（`236-238`）。即 T 日开盘决策时已经知道 T 日是否会涨停/跌停。
+- 影响：开仓剔除「当日会涨停」的票、跌停时推迟卖出 —— 确定使用了未来信息。
+- 修复：开盘成交口径改用 `open/close[-1]-1` 或 `open/prev_close`；`stock_gui._v4_portfolio_sim`
+  在 `EXEC_PX=open` 时同病（`stock_gui.py:7520,7778`，默认 close 可接受）。
+
+### P1-4 v4 预测缓存/因子面板是 W=10 时代产物，签名不含 W
+
+- `_v4_factor_matrix` 的 L1 因子用模块级 `W_WINDOW`（`stock_gui.py:6912-6916`）；
+  热修⑦把 `W_WINDOW/TOPK` 从 10 修回 20（`stock_gui.py:4144-4147`），但缓存签名只含
+  `codes/min_bars/dmax/nbars/ver`（`stock_gui.py:7951-7952`、`_V4_CACHE_VER="3"`）。
+- 现状：`research/v4_preds.pkl`（mtime 2026-09-14）、`research/factor_lab/panel.npz`（2026-09-15）
+  均早于口径修复；以下脚本默认引用旧缓存：`backtest_v5_cross_section.py:230`、
+  `backtest_exit_ablation.py:42`、`backtest_v4_entry_exit_opt.py:36`、`backtest_exit_roll.py:60`。
+  v5 横截面/因子研究的结论仍是 W=10 口径。
+- 修复：缓存签名加入 `CFG.W_WINDOW/TOPK/IND_W` 与数据哈希；重跑 `v4_preds.pkl`、`panel.npz` 后再引用。
+
+### P1-5 Web 版形态样本窗口重叠/自匹配（热修⑦只修了 GUI）
+
+- `stock_web.py:448-454`（浏览器 JS）、`stock_web.py:993-1001`（服务端 `/text|/svg|/e63`）、
+  `pi_stock_web.py:241-247/794-802`：候选 `i` 取到 `rets.length-2`，无 GUI 的 `k+W<=i-W` 隔离，
+  Top-K 之间也无去重（GUI 见 `stock_gui.py:4823-4825`、`6231-6237`）。
+- 只读复刻（本机 398 只、W=10）：**67.8%** 的股票 Top10 内存在 `|i-j|<W` 的重叠样本对（505 对）；
+  **14.3%** 的股票存在与当前窗口重叠的候选（样本 T+1 实现日落在当前特征窗内）→
+  `up_prob`/分位被伪重复和自匹配抬高（与热修⑦在 GUI 修掉的是同一问题）。
+- 修复：移植 GUI 两条约束；顺带把 W=10 与 GUI W=20 对齐或页面标注口径。
+
+### P1-6 研究脚本「验证段参与选择 / 重叠窗 WF / 网格维度失效」（首轮旧账 + 本轮补充）
+
+| 脚本 | 问题 | 修复 |
+|---|---|---|
+| `backtest_v4_entry_exit_opt.py:225-237,268-279` | `robust()` 用 **S3 留出切片年化**决定候选能否进推荐表（排序虽用 T12），违反自述「S3 样本外」 | 稳健门槛只用 T12/滚动 WF，S3 只报告 |
+| `backtest_exit_roll.py:122-128,191-217` | 默认 `--win 120 --step 60`，相邻窗重叠 60 日，「窗口 k 选 → k+1 验」含半窗共用数据 | `step>=win`，或改称「滚动稳定性」不叫 OOS |
+| `backtests/sweep_risk.py:14-19,45-79` | 约 30 组在同一全样本选优（自注「样本内」）；`buy_th/cooldown` 两维**实际无效**——`backtest_bsmatrix.gen_signals:168-177` 读 `CFG.SIGNAL_SCORE_BUY/COOLDOWN`，不读 `RISK_PARAMS["_t"]` | 修 `gen_signals` 读被扫描参数；`CFG.RISK_PARAMS` 注释降级为「ATR/移动止盈两维·样本内扫描」 |
+| `backtests/sweep_risk.py:85` | `_os_boot/_RESULTS_DIR` 未定义，脚本必然 `NameError`（当前不可复现） | 补 import/常量或归档删除 |
+| `backtests/backtest_exit_ablation.py:68-163,181-214` | 68 个退出变体在**同一 252 日窗口**全样本排序，头部候选直接进 `_V4_VARIANTS`/生产默认，无留出 | 报告已点名（`reports/回测复核报告_20260913.md:125`）；建议默认只用 train→val 协议重选 |
+
+### P1-7 组合层丢选型：`chip_peak/l2_ind/sector_rot` 在组合回测里无信号
+
+- `backtests/backtest_strategy_portfolio.py:72-77` 的 `_GEN` 只有
+  `macd/kdj/rsi/boll/ma_trend/l1_pattern`；`stock_gui.strategy_signals_full`
+  （`stock_gui.py:3745-3752`）包含另外三个，消融选中占比合计约 10%
+  （`research/strategy_ablation_summary.json`）。`backtest_portfolio_overlay_opt.py`
+  复用 `_worker_slot` 同病。
+- 影响：组合层回测系统性漏掉这部分股票的选型信号，结论与 GUI 展示不同口径。
+  修复：补齐映射或显式剔除并披露占比。
+
+### P1-8 全库回填另一路径：`backfill_etf.py` 用新浪不复权价写库（本轮新增）
+
+- `backfill_etf.py:18-25` 用 `_fetch_sina`（URL 无复权参数，`stock_gui.py:1271-1294`）写
+  `daily_bars`；ETF 分红/份额折算会在不复权序列留下向下跳变，而 `_bars_anomalous`
+  对 ETF 孤立跳变放行（`stock_gui.py:1024-1031`）。
+- GUI 的「ETF 回填」按钮走集成版 `backfill_etf_history`（`stock_gui.py:2407`，hfq + `_sync_adjust`），
+  本文件是遗留一次性脚本；但若直接运行会污染 ETF 序列，影响 `universe=etf` 回测。建议删除或改 hfq。
+
+## 3. P2（口径 / 披露 / 工程债）
+
+1. **`_set_adjust` 旧内嵌路径仍用实时价配「已过滤今日」的末根**（`stock_gui.py:1981-1982,2133-2134`）——
+   `sync_adjust.py:8-15` 已修复的 bug①，这两处未同步；盘中运行会把整段历史按今日涨跌幅缩放。
+2. **`_v4_mkt_ind_ctx` 行业维度幸存者/时点分类**（`stock_gui.py:6940-6966`）：退市股 `industry=''`
+   不参与行业均值（行业收益偏高），行业名取当前快照；市场等权混入 ETF/指数。
+   `sector_mom_series`、`sector_l2_series`（`stock_gui.py:4986-5018`、`4891-4947`）同样按当前 industry 分组。
+3. **factor_lab「大盘5日」是零信息列仍被贪心选中**：`panel.py:414-432` 日内方差为 0 的列原样置 0，
+   `enumerate.py:66-68` 再逐日中心化 → 该列贡献恒 0；`validate.py:58-59` 贪心以 `ic > best` 免费搭车，
+   入选频率 0.90，只在 `validate.py:324-325` 的 `abs(single_ic)>1e-4` 守卫才排除；
+   同时让 2^21 枚举 / BH 家族出现约一倍重复假设。
+4. **factor_lab `top_val_oracle` 落盘**（`enumerate.py:228,239`）：当前无消费者，但把纯验证段排行持久化，
+   流程上易被反选；建议标记 diagnostic-only 或移除。
+5. **factor_lab 没有 untouched holdout**：`EVAL_DAYS` 1000→2000、多次换验证段重跑
+   （full2000/sample1500/…），验证段已被人眼反复查看；报告需区分「一次性留出」与「调参后再看」。
+6. **研究缓存无 CFG 指纹**：`bt_common.write_run_meta` 不记录 `W_WINDOW/TOPK/IND_W/RISK_PARAMS`
+   与 `v4_preds.pkl/panel.npz` 的 mtime/hash，旧口径无声回流（P1-4 的根因）。
+7. **Web 历史统计信号用最新量比回填历史**（`stock_web.py:516-528`）：`dVol(j)` 用 `vrNow`（最后一根量比）
+   与历史 j 比较，图上历史 B/S 与「最近信号」是事后口径，复盘不可复现（仅展示）。
+8. **Web 文档不实 / 披露不足**：`ARCHITECTURE.md:500-502` 写「同样的加权分位区间法」
+   「方向交替与冷却过滤器（与 GUI 一致）」；实际是等权原始分位（无相似度/时间衰减权重、
+   无 `INTERVAL_K`），MACD/KDJ/RSI 各自独立打点（无 prev_dir/cooldown）。
+   要么补实现，要么改文档；页面仍未标「弱化版/W=10/无置信度」。
+9. **仪表盘默认展示 `segment=full` 批次且无「样本内」角标**（`backtests/v61_dashboard.py:954-959` 等）；
+   GUI 单股回测「无手续费」限定在仪表盘/导出 meta 丢失（`stock_gui.py:3535-3632` 无费用，
+   面板有标注；`v61_dashboard.py:738-750` 未继承）。
+   另：`PAGE_LITE`（`stock_web.py:1125` 内嵌 ES5）的 KDJ 模式引用不存在的 `V.j`、
+   样本无 `hi_o/lo_o` 字段，KDJ 副图与 P10/P90 高低区间在 `/lite` 上是 NaN——顺带修复。
+10. **`backtest_aggr_lottery.py:66-68` 用当前 ST 名单回填历史股票池**（今天 ST 的整段剔除、
+    历史曾 ST 的保留），且 `shares=mktcap/现价` 假定股本不变；属研究脚本前视（同文件 `267`）。
+
+## 4. 本轮复核通过（无需改）
+
+- GUI 形态匹配：`_sig_l1_pattern` 候选 `k+W<=i-W`；`analyze` 候选窗上界 `len(rets)-W`（与当前窗相邻不重叠）。
+- 事件回测：`_bt_events`/`_bt_simulate` T 日收盘信号 → T+1 成交、止损用 T-1 ATR、highest 只在成交后更新。
+- 消融：`run_ablation` 近端门槛取 `split`（训练段末尾），`backtest_strategy_ablation.py` 已同步；
+  经验核验 10,777 候选 `recent.trades <= train.trades`，验证段只进报告。
+- v4：折间 purge+embargo（`tr_end=a-maxH-embargo`）、标准化/Lasso/选 H 只用训练段、
+  已删除「按测试折 IC 弃用预测」的旧泄漏；组合回测 `_v4_morning_view` 决策列后移、
+  涨跌停执行口径默认 close 正确。
+- 三档引擎：`gate` 用 T-1 收盘、`d=t-1` 取分、T 收盘成交、费用/整手/停牌/退市 20 根强平齐全。
+- factor_lab：train/val 无重叠（实测 overlap=0，1 日 embargo）、BH-FDR 家族由训练段选出、
+  验证段只检验；`matching.py/chips.py/factors.py` 扰动测试确认因子因果。
+- Web：逐窗 z-score + logret + 欧氏距离与 GUI 同式、MACD/KDJ/RSI 参数一致、不在未完成 bar 标信号。
+
+## 5. 修复顺序建议（二轮）
+
+1. **数据安全**：`backfill_full.py` 改 hfq / 按钮改调集成版；抽查并重灌被 qfq 覆盖过的代码段。
+2. **回测口径**：三档 `tier_load_panel` 绝对价/流动性门槛改 point-in-time 或明示不可复现；
+   `daily_picks` 仙股过滤乘 `k`。
+3. **研究可信度**：`v4_preds.pkl`/`panel.npz` 重跑 + 缓存加 CFG 指纹；
+   `backtest_v5_cross_section` 涨跌停掩码修口径；`backtest_v4_entry_exit_opt` S3 退出选择；
+   `backtest_exit_roll` `step>=win`。
+4. **factor_lab**：股票池去掉 industry 硬过滤（含退市）；L2/L3 改滚动市值；
+   LASSO CV 按日期分组 + purge；重跑。
+5. **Web**：样本窗口隔离+去重、历史量比因果化；文档与页面标注弱化版。
+6. **工程**：删/改 `backfill_etf.py`、修 `sweep_risk.py` 或归档、补 `_GEN` 三个信号。
+
+---
+
+*二轮专项基于 2026-09-26 工作区（HEAD f212e05 + 未提交筹码 UI 改动）；只读审查，未改代码。
+不构成投资建议。*
+
+---
+
+## 6. P0 处理记录（v6.1.5 热修⑩，2026-09-27）
+
+| 项 | 处理 | 说明 |
+|---|---|---|
+| P0-1 全库回填 qfq 覆盖 hfq | ✅ 已修 | `backfill_full.py`：`_tx_fetch` 改 `hfq`/`hfqday`；`_store` 增**重叠日口径校验**（收盘偏差>1% 拒写）；写后调 `sg._sync_adjust` 刷新显示 k；docstring 同步。实测 `sh600000` 腾讯 hfq 与库内重叠日偏差 **0.0000%**。GUI「数据工具→全库回填」走的即该脚本，现已安全（未改调集成版）。 |
+| P0-2 三档门槛用今日复权锚 | ⚠ 部分修复+备案 | `daily_picks` 仙股过滤改为 **hfq×k（显示价）≥2**（原直接比 hfq 值形同虚设）；`_TIER_MIN_PRICE/_TIER_MIN_AMOUNT` 处加口径备案：门槛以**今天为锚**，跨日期重跑历史池不可完全复现（收益率类指标不受影响，仅可交易池/绝对阈值受损）。彻底修复需库内保存历史复权因子（point-in-time），列为后续项。 |
+| P0-3 factor_lab 幸存者偏差 | ✅ 已修，重跑中 | `factor_lab/data.py:list_codes` 不再要求 industry 非空（只要求 stocks 表内）；`panel.py` L2/L3 分组排除「行业/分层未知」组（缺失按中性）。实测代码池 5420 只，**2018–2026 退市的 229/232 只已纳入**。全量重跑已启动：`research/factor_lab/full2000_nosurv/`（8 workers，预计 ~4 小时），跑完后再更新 factor_lab 结论。 |
+
+P1/P2 未动（见上节修复顺序建议）。
