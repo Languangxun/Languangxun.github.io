@@ -4,15 +4,18 @@ title: "stock-pi-mobile · 触摸屏终端"
 permalink: /docs/stock-pi-mobile/
 ---
 
-[← 返回文档中心](/docs/) · 来源：本地项目（暂未单独开源） · 同步于 2026-09-26
+[← 返回文档中心](/docs/) · 来源：本地项目（暂未单独开源） · 同步于 2026-09-27
 
 定位：随身盯盘终端（代替手机）。只做界面，行情/预测/荐股/AI 全部复用
-`stock_predict.py`（与 `stock_gui.py` 同源的生成物），不复制算法。
+[stock-analyzer](https://github.com/Languangxun/stock-analyzer) 的
+`stock_predict.py`（与 `stock_gui.py` 同源），不复制算法。
 
 - 自适应 **240x320 竖屏 / 320x240 横屏**（自动检测；`--size` 可桌面预览）
 - 触控优先：大按钮、拖动滚动、长按菜单、数字键盘；无鼠标也能全流程操作
 - 屏幕尽头的导航：自选 / 荐股 / AI / 设置
 - 后端缺失时降级：无网显示缓存/--；无 numpy 时荐股给出兜底入口
+
+![自选页](/assets/img/stock-pi-mobile-screenshot-watch.png)
 
 ## 功能
 
@@ -27,7 +30,9 @@ permalink: /docs/stock-pi-mobile/
 
 ## 部署到树莓派
 
-1. 把本目录拷到 Pi，再把后端三件套放到同目录（或任意目录用 `--backend` 指定）：
+1. 把本仓库放到 Pi（`git clone` 或整体拷贝），再从
+   [stock-analyzer](https://github.com/Languangxun/stock-analyzer) 取后端三件套
+   放到同目录（或任意目录用 `--backend` 指定）：
    ```
    stock_predict.py      # 算法（唯一生成物，勿手改）
    stock_cache.db        # 日K缓存
@@ -92,7 +97,7 @@ Pi Zero/armv6 跑不动三档引擎，用「电脑算、终端看」：
 # 电脑上（装了 numpy 的机器，数据库同目录）
 python3 make_picks.py --backend ~/stock_predict
 # 生成 picks_cache.json（三档全量），拷到终端 stock_pi_mobile/ 下
-rsync -a picks_cache.json pi@<内网IP>:~/stock_pi_mobile/
+rsync -a picks_cache.json pi@<树莓派IP>:~/stock_pi_mobile/
 ```
 
 终端打开「荐股」会直接秒读快照，右上角标注 `快照 时间 · topN`；
