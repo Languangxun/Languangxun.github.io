@@ -4,12 +4,133 @@ title: "stock-analyzer · 变更日志"
 permalink: /docs/stock-analyzer-changelog/
 ---
 
-[← 返回文档中心](/docs/) · 来源：[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer) · 同步于 2026-09-28
+[← 返回文档中心](/docs/) · 来源：[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer) · 同步于 2026-09-30
 
 > 版本摘要与历史变更记录；用户向说明见 [README](README.md)，技术架构见 [ARCHITECTURE](ARCHITECTURE.md)，
 > 回测复核与代码审查见 [reports/](reports/)。
 
 ## 版本历史
+
+> ㊹ **v6.1.8：bata 档改「激进破甲版」（配置复制激进 + 允许打板 + 按历史最大回撤止损，2026-09-28）**：
+> ① **组合层**——`TIER_CFG`/`_MAIN`/`_ETF`/`_ALLETF` 的 `bata` 改为
+> `dict(同口径激进, allow_limit_up=True)`（全A=创业板高β Top5/10日/创业板指 MA60；
+> 主板/ETF/全A含ETF=blend_mom 0.7 Top20（ETF Top10）/10日/上证 MA20；仅额外解除
+> 「涨停不买」）；初版「blend_mom Top5/20日/科创50 MA60」高赔率低频实现废弃
+> （全A +31.3% 跑输激进 +56.2%），`backtests/sweep_bata.py` 与 `research/bata_sweep_*`
+> 转历史留档（脚本 docstring 标注废弃）。
+> ② **买卖点风险参数（按历史最大回撤止损）**——`CFG.RISK_PARAMS["bata"]` 入场与
+> 激进完全一致（买点门槛 1 / 冷却 3），止损改用**入场前 500 日个股历史最大回撤**
+> （新增 `_mdd_stop_dist`，限幅 8%~50%；未盈利=入场价−MDD、盈利后=峰值−MDD），
+> `_bt_events`/`_bt_simulate` 双引擎支持，历史不足 60 根回退 ATR4.0/回落12%；
+> 生产端 `tier_latest_picks` 的 bata 参考止损同步为 MDD 口径。
+> ③ **消融选型**——`_ablation_weights`/`_pick_one_from_pool` 的 bata 目标由「偏 PF 赔率」
+> 改为与激进一致（偏年化+Calmar）；GUI 消融弹窗/设置页按钮说明/菜单版本号/AI 提示词
+> （`RISK_AI_GUIDE`、`ai_choose_tier`）同步「激进破甲」口径；`APP_VERSION=6.1.8`，
+> `stock_predict.py` 重新生成。
+> ④ **回测口径**——组合引擎不设止损（只按调仓/闸门进出），本次止损改动只影响
+> 单股买卖点/消融/逐股回测；按用户要求本轮**不重跑**回测，README 回测摘要沿用
+> v6.1.7 批次（`research/backtest_v6.1.7_20260928_220922_full/`、`v61_report*.md`、`tiers_yearly.json`）；
+> README 四档策略/bata 说明/风险参数表、ARCHITECTURE 3.6/3.7/3.8/4.4/七节与仪表盘文案同步。
+> ⑤ **性能与口径修复（P0/P1）**——P0：`_bt_simulate` 年化口径与 `_bt_events` 对齐
+> （用区间起点日期算年数、下限 0.25 年；首信号远晚于区间起点时年化不再虚高）；
+> P1：三大回测脚本多进程并行 + 跨档指标复用——① `backtest_v61.py` 4 口径改
+> 多进程并行（新增 `--workers`，0=自动 min(4,CPU)/1=串行），**父进程预热面板/特征后
+> fork 继承**（初版每进程独立加载 1.6G 库争 IO，实测 175.9s 反比串行慢；修复后
+> **75.6s → 74s**，基线 127.9s、目标 ≤80s 达成），修复初版重构产生的计时 bug
+> （`t0` 移到口径回测之前）与主进程重复 `tier_load_panel`（`data_end` 改用库内
+> 最大交易日）；② `stock_backtest_export.py` 逐股回测改 `map+chunksize=20`
+> 批量提交（替代旧 `submit+as_completed` 逐只 IPC，默认 workers 4→8），且**4 档
+> 共用 1 次 ATR(14) 预计算 + composite 算法 4 档共用 1 次 `_composite_precompute`**
+> （ATR/pre 不依赖 rp/sigs，原 4×重复计算），**260s → 204s（-22%）**；③
+> `backtest_strategy_ablation.py` 改 `map+chunksize` + 默认 workers 8→16，
+> **509s → 373s（-27%）**。组合层 v61 数字与 v6.1.7 bata 改激进破甲版完全一致
+> （浮点 <0.01pp）。基线协议见 `research/baseline/BASELINE.md`。
+> ⑥ **P0 数据正确性二轮修复（2026-09-30）**：深度审查发现并修复——
+> ① **bata 档止损参数实际未生效（P0-12，v6.1.7 bata 改激进破甲版起即存在）**：
+> `tier_picks_from_ablation` / `stock_backtest_export` 的 bata 档直接取选型候选
+> `pk.get("params")`，若选型选中 `mode='激进'` 候选则 bata 档实际跑激进 ATR 止损
+> （ATR2.5x），500 日 MDD 止损形同虚设（perstock bata 与激进 total/ann/winrate/val
+> 全部完全一致）。修复后 bata 强制 `RISK_PARAMS["bata"]`，选型只决定 algo/信号源；
+> perstock bata 总收益中位 +63.22%→**+37.24%**（-25.98pp），胜率 50%→**56%**（+6pp），
+> 盈亏比 2.21→**1.48**（-0.73），呈现「高胜率·低赔率」真实画像，验证段 -2.62%
+> （样本外仍接近 0），其他档不受影响；
+> ② **生产端 bata 参考止损与回测口径差 1 根**：`tier_latest_picks` 用
+> `_mdd_stop_dist(C[k], d+1, ...)` 取 T 日之前 500 根，回测引擎用
+> `_mdd_stop_dist(c_a, i=执行日=T+1, ...)` 取 T+1 日之前；改 `d+2` 对齐；
+> ③ **过拟合相关 docstring 误导修复**：`_ablation_recent` / `pick_ablation_consistent`
+> 旧 docstring 误称「近窗 = 验证段」，实际 v6.1.5 热修⑥ 已改传 `split`，
+> 近窗**严格只用训练段末尾 250 根**；docstring 与实现同步，加 ⚠ 防回归注释。
+> ㊸ **GUI 内置「一键全量回测」入口 + 打开仪表盘（2026-09-28）**：工具菜单新增
+> **「一键全量回测（全期/分段/逐股，后台）」**与**「打开回测仪表盘（网站）」**；
+> 数据工具页顶部新增同名区块（含「含逐年分段」勾选），点击直接调仓库根
+> `run_backtest.sh`，stdout 实时回流到数据工具窗口（沿用 `_ext_spawn` 子进程与
+> 停止按钮）。链路：全期四口径 × 四档 → val → bull →（可选逐年）→ 全市场逐股，
+> `backtest_v61`/逐股导出各自刷新 `dashboard.html`，跑完脚本自动打开网站；
+> 菜单入口会复用已打开的工具窗口，不重复开窗。无头实测：命令拼装
+> （`bash run_backtest.sh [--yearly]`）、窗口直达数据页、仪表盘 file:// 打开均正常。
+
+> ㊷ **桌面「一键回测」快捷方式 + `run_backtest.sh`（2026-09-28）**：新增仓库根
+> `run_backtest.sh`（`--yearly` 可选、`--dry-run` 预演）按顺序执行
+> ①全期四口径 × 四档 → ②样本外 val → ③强势段 bull → ④全市场逐股回测
+> （进程数=min(核数,8)）；每步终端与 `research/oneclick_backtest_<时间戳>.log`
+> 双写，任一步失败即停并保留窗口；跑完自动打开 `research/dashboard.html`。
+> 桌面快捷方式 `~/桌面/stock_backtest.desktop`（Name=一键回测，Terminal=true，
+> 已设 `metadata::trusted`）双击即可。实测：逐年 95s、全市场逐股 260s
+> （6897 只 / 27588 行 / 四档工作表）均正常；快捷方式默认不含 `--yearly`，
+> 需要逐年数据时执行 `bash run_backtest.sh --yearly`。
+
+> ㊶ **仪表盘支持导出完整回测数据 + 全量回测命令（2026-09-28）**：`dashboard.html`
+> 顶部新增导出按钮——**导出全量数据（JSON）**：全部批次（全期/样本外/强势段/
+> 后续逐年批次）× 口径 × 档位的指标、净值曲线、每只股回测、单股（GUI）记录与
+> 复现命令一次打包；**导出指标 CSV**：全部批次的组合 + 荐股逐笔指标（含批次区间/
+> 标签，可直接做分期对比）；**导出曲线 CSV**：全部批次净值 + 主基准净值长表。
+> 「每只股回测」页新增**导出当前筛选 CSV**（尊重搜索/档位/正收益/事件股筛选与排序），
+> 「单股回测（GUI）」页新增**导出本记录 JSON**（含完整净值曲线与 T+1/T+5 统计），
+> 「明细表 / 文件」页新增**全量回测命令块**（全期 + 样本外 + 强势段 + 逐年 +
+> 全市场逐股，一键复制到仓库根目录执行）。导出全部为浏览器端 Blob 下载，
+> 无需本地服务；gjs 对导出函数做了运行级验证（指标/曲线/JSON/筛选 CSV 均正确）。
+
+> ㊵ **核验「净值曲线横线」= 闸门关闭空仓（非无交易/无数据）+ 仪表盘标注（2026-09-28）**：
+> 针对「横线是不是没交易」的疑问逐档核验 v6.1.7 全期报告：4 口径 × 4 档共
+> **195 处平段，全部满足区间内闸门开 0/N**，且平段前闸门刚开过（如全A激进
+> 2026-07-24~09-24 平段 28/28 关闭）。结论：水平段 = 趋势闸门关闭 → 各相位在
+> 自己的调仓日依次清仓后持现金（相位平均下先分化后全平），非行情缺失或引擎
+> 故障；曲线横线越长代表该档空仓避险越久（如 bata 2023-06~11 科创50 MA60
+> 长关 5 个月）。
+> 为避免误读，`dashboard.html` 净值曲线页新增**横线说明**（各档闸门对照），
+> 且悬浮读数对处于平段的档自动标注「（空仓·闸门关）」。
+
+> ㊴ **v6.1.7 热修②：AI 提示词按风险偏好 + 所有风险偏好入口补 bata（2026-09-28）**：
+> ① **AI 提示词动态化**——新增 `RISK_AI_GUIDE`（档次 保守 < 稳健 < 激进 < bata）
+> 与 `ai_system_prompt()`：保守=等确认/轻仓，稳健=兼顾但必须可执行，
+> 激进=突破即进攻、禁用「等企稳/等回踩/观望」搪塞，**bata（最高档，高于激进）=
+> 高赔率敢下手、强势/涨停附近可直接给买入或打板（涨停价）建议、允许集中仓位、
+> 禁止等企稳措辞**；系统提示词与首条数据上下文都注入该约束，风险偏好变化后
+> 上下文 hash 随之变化 → 自动重新提问，不复用旧口径缓存回答；`ai_choose_tier`
+> 改用基础系统提示词避免偏置。
+> ② **所有风险偏好入口补 bata**——逐股回测导出 `stock_backtest_export.py`：
+> `--mode tiers` 分表加 bata（xlsx 四工作表）、`--mode 保守/稳健/激进/bata` 单档
+> 固定该档参数（修正单档此前实际落到稳健参数的问题）；`tier_picks_from_ablation.py`
+> 选型/推荐/高波动回退加 bata；GUI「数据工具→每只股回测」下拉改「四档(分表)」+
+> bata；图表「激进档多交易兜底」扩展至 bata（保证买卖点可见）。
+> ③ **文档**——README AI 功能/标签页、ARCHITECTURE 3.9/4.1/变更索引同步。
+
+> ㊳ **v6.1.7 热修①：买卖点风险偏好新增 bata 档（高赔率·低频，2026-09-28）**：
+> ① **参数**——`CFG.RISK_PARAMS` 增 `bata = (atr_mult 3.5, trail_trigger 1.05,
+> trail_ratio 0.90, buy_th 2, cooldown 8)`：比稳健（ATR1.5/冷却5）止损更宽、
+> 止盈更慢（+5% 才启动移动止盈、回落 10% 才走）、交易更少；经 300 只 × 400 根
+> 同源对照选出（`_composite_signals` + `backtest_signals`）：bata 赔率中位 **1.73** /
+> 年化中位 **+2.0%** / 均笔 11.7，对照保守 1.50/-1.2%/10.2 笔、
+> 稳健 1.69/-1.0%/14.1 笔、激进 1.83/+1.5%/18.7 笔。
+> ② **消融集成**——`_ablation_weights` 新增 bata 目标（PF 0.45 / Calmar 0.25 /
+> 年化 0.20 / 胜率 0.10），`_pick_one_from_pool` 按其映射；`run_ablation` 候选
+> 30→**40**（10 算法 × 4 参数），输出四档 `mode_candidates`、日志与推荐，
+> 高波动股回退范围加 bata；策略弹窗 `order` 加 bata（可单选应用），
+> 设置页「风险偏好」下拉自动含 bata。
+> ③ **文档**——README「四档风险参数」表 + bata 对照段、ARCHITECTURE 3.6/3.8/变更索引、
+> 消融脚本注释同步；`build_cli.py` 重新生成 `stock_predict.py`。
+> 注：逐股多维评分的绝对收益整体偏弱（与既有「样本外归零」结论一致），
+> bata 档定位为同族中「赔率优先、换手更低」的参数档，不代表组合层 bata 策略。
 
 > ㊲ **v6.1.7：新增第四档 bata（高赔率·低频·允许打板，四口径）**（2026-09-27）：
 > ① **引擎支持**——`tier_build_features` 新增 `beta60_star`（对科创50 的 60 日 β），
