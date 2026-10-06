@@ -4,7 +4,7 @@ title: "ai-quant · OrangePi 量化模拟盘"
 permalink: /docs/ai-quant/
 ---
 
-[← 返回文档中心](/docs/) · 来源：[Languangxun/ai-quant](https://github.com/Languangxun/ai-quant) · 同步于 2026-09-26
+[← 返回文档中心](/docs/) · 来源：[Languangxun/ai-quant](https://github.com/Languangxun/ai-quant) · 同步于 2026-10-06
 
 Pi（`orangepizero2w`）上的 AI 量化研究与模拟交易系统：**股票+ETF 组合模拟盘**
 （CLI 选股 + LLM 决策 + A股账本 + 全缓存回测）、旧版场外 ETF 联接 C 类基金
@@ -89,7 +89,7 @@ cd scripts/cli && python3 stock_predict.py 000725
 ```
 
 - 源码 `scripts/cli/stock_predict.py` 已入库（生成物但随仓库分发）；
-  缓存 `scripts/cli/stock_cache.db`（全市场日K，约 813 万根）不入库，
+  缓存 `scripts/cli/stock_cache.db`（全市场日K，约 1272 万根）不入库，
   新环境用 `--refresh-cache` / `--backfill` / `--refresh-etf` 重建
 - AI：优先 `DEEPSEEK_API_KEY` / `stock_gui.ini [deepseek]`；缺省回退主目录
   opencode-go 授权（`~/.local/share/opencode/auth.json`）
