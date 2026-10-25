@@ -4,7 +4,7 @@ title: "ai-quant · OrangePi 量化模拟盘"
 permalink: /docs/ai-quant/
 ---
 
-[← 返回文档中心](/docs/) · 来源：[Languangxun/ai-quant](https://github.com/Languangxun/ai-quant) · 同步于 2026-10-06
+[← 返回文档中心](/docs/) · 来源：[Languangxun/ai-quant](https://github.com/Languangxun/ai-quant) · 同步于 2026-10-25
 
 Pi（`orangepizero2w`）上的 AI 量化研究与模拟交易系统：**股票+ETF 组合模拟盘**
 （CLI 选股 + LLM 决策 + A股账本 + 全缓存回测）、旧版场外 ETF 联接 C 类基金
@@ -16,10 +16,21 @@ stock-analyzer 通过 `--push` 推送的分析报告。
 独立 `RiskManager` 预交易风控拦截层、订单生命周期日志（REQUESTED →
 VALIDATED → FILLED / REJECTED / NO_CHANGE）。
 
+2026-10 重构另参考 MIT 项目 [QUANTAXIS](https://github.com/yutiansut/QUANTAXIS)
+（QASU/QAData/QIFI/QAStrategy/QAFactor 分层）与 [zvt](https://github.com/zvtvz/zvt)
+（TradableEntity/Event + record/query + Factor/Trader），仅借鉴思想、无源码复制，
+归因见 `THIRD_PARTY_NOTICES.md`，说明见 `docs/REFACTOR_qa_zvt.md`。
+
 ## 目录
 
 | 路径 | 用途 |
 |---|---|
+| `core/` | 统一类型与策略基类（`types.Bar/Signal` + `strategy.BaseStrategy/registry`，对标 QAStrategy/zvt-Trader） |
+| `data/store.py` | 统一行情存储（单例+WAL+批量读+索引，对标 QAData/zvt-query；旧 `data/stock/cli_bridge.py` 仍兼容） |
+| `factors/` | 统一因子层：`technical` numpy 12列 / `chaodi` 18策略适配 / `morphology` 形态三档适配 / `ml` LGBM懒加载 |
+| `strategies/` | 统一策略注册表：`chaodi_trend` / `morphology_tier` / `lgbm_prob` / `mix_ensemble`（回测实盘同口径） |
+| `backtest/engine_v2.py` | 策略可插拔回测（沿用 `stock_engine` 成交/费用/ATR止损口径，只换信号源） |
+| `vendors/` | 桌面算法同步拷贝：`chaodi/et_engine` / `sniper/{indicators,features,signals}` / `sm701/lgbm_model.txt+README` |
 | `main.py` | 入口：读取 `config/system.yaml` |
 | `agent/` | 决策链路（stock_decision 股票组合 / ensemble 基金多模型） |
 | `models/` | 模型客户端（deepseek / embedding / prompt / stock_prompt） |
@@ -81,6 +92,10 @@ VALIDATED → FILLED / REJECTED / NO_CHANGE）。
 - **订单日志**：指令状态落 `sim/state/order_journal.jsonl`（REQUESTED →
   VALIDATED → FILLED / REJECTED / NO_CHANGE），风控在
   `risk/stock_rules.py` 独立拦截层统一判定。
+- **LLM 自动降级**：DeepSeek 余额不足/额度耗尽/鉴权失败，或网络不可达
+  （网口抖动导致 Connection error）时，自动切纯代码评分轮动
+  （卖出跌出评分前列或 -5% 止损的持仓，买入评分最高候选），
+  继续遵守持仓数/单票上限/日内买入限额；恢复后自动回到 LLM 决策。
 
 ## CLI（预测/选股引擎）
 
