@@ -17,7 +17,6 @@
   - stock-analyzer 回测报告：`docs/stock-analyzer-backtest.md`（索引）+ 每只股票 `docs/stock-analyzer-backtest-<code>.md`
   - stock-pi-mobile：`docs/stock-pi-mobile.md`
   - OneOS：`docs/oneos.md`、`oneos-architecture.md`、`oneos-roadmap.md`、`oneos-boot-animation.md`
-  - AI 围棋竞技场：`docs/go-arena.md`
   - 文档中心：`docs/index.md`；多篇文档的配图放在 `assets/img/`
 - 联系方式：Telegram `@Monologue_101`、QQ `2180287399`
 
