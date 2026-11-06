@@ -4,12 +4,193 @@ title: "stock-analyzer · 变更日志"
 permalink: /docs/stock-analyzer-changelog/
 ---
 
-[← 返回文档中心](/docs/) · 来源：[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer) · 同步于 2026-10-25
+[← 返回文档中心](/docs/) · 来源：[Languangxun/stock-analyzer](https://github.com/Languangxun/stock-analyzer) · 同步于 2026-11-06
 
 > 版本摘要与历史变更记录；用户向说明见 [README](README.md)，技术架构见 [ARCHITECTURE](ARCHITECTURE.md)，
 > 回测复核与代码审查见 [reports/](reports/)。
 
 ## 版本历史
+
+> **v7.0.7：左侧自选池按最长行自动加宽（2026-11-06）**：修复 `sz159516
+> 半导体设备ETF国泰` 等长名称/ETF 被截断——`_render_watchlist()` 用
+> `tkfont.Font("Consolas",8).measure()` 量当前最长行，列宽=文字宽+24px，
+> 自选池栏宽=列宽+18px，并随自选池内容自动增减（下限 184、上限屏宽 18%，
+> 1920 下最大 280px）；实测 159516 行宽 191px → 栏宽 233px 完整显示。
+> `APP_VERSION=7.0.7`，`stock_predict.py` 重新生成，README/ARCHITECTURE 同步。
+
+> **v7.0.6：左侧自选池显示实时涨幅 + 红绿（2026-11-06）**：自选池由
+> `tk.Listbox` 改为紧凑 `ttk.Treeview`（Watch.Treeview，字号 8/行高 19），
+> 每行显示「代码 名称 涨跌幅」，涨幅≥0 红色、<0 绿色（沿用 UP/DOWN）；
+> `_refresh_names()` 改为一次批量取快照中的名称/现价/昨收/涨幅，并接入
+> `_index_loop` 每 30s 刷新；重新渲染时保留选中项与滚动位置；自选池宽度
+> 下限调到 184px 以完整显示。`APP_VERSION=7.0.6`，`stock_predict.py`
+> 重新生成，README/ARCHITECTURE 同步。
+
+> **v7.0.5：分时价格线改白色（2026-11-06）**：主图分时价格线由强调蓝
+> `ACCENT` 改为 `TPRED_C`（暗色/高对比纯白、亮色自动转黑），与黄色虚线
+> 均价线明显区分；AI 侧栏分时 Mini 图同步。`APP_VERSION=7.0.5`，
+> `stock_predict.py` 重新生成。
+
+> **v7.0.4：右侧栏按面板内容自适应宽度（2026-11-06）**：右侧栏不再固定占
+> 29% 屏宽（1920 下 540px），改为构建后测量「预测参考/盘口/AI Agent/插件」
+> 各自 `winfo_reqwidth()`，切页时套用「内容宽 + 22px」并受屏宽 34% 上限约束：
+> 实测 1920 下预测参考 304、盘口 220、AI Agent 335（原 540），交易记录按内容
+> 529；同时收窄自选池（192→174）与 AI 数据区分时画布/ETF 列宽，进一步给主图
+> 让位。`APP_VERSION=7.0.4`，`stock_predict.py` 重新生成，README/ARCHITECTURE 同步。
+
+> **v7.0.3 热修：盘前不再提前上色 T 日 K + T 日幽灵K叠加（2026-11-06）**：
+> ① 9:15~9:30 集合竞价/撮合阶段不再合成盘中 `live` bar（原阈值 9:25 起，
+> 导致开盘前 T 日 K 提前变成实心彩色）；`live` 改为 9:30 起，9:25~9:30
+> 阶段 `pre_open=True`，预测锚昨收、标签为「今日(T)」。② 盘中已有真实 T 日
+> bar 时，T 日预测改为**同 x 虚线空心叠加在真实 K 上**，不再额外追加一根
+> 幽灵K（视觉上像 T+1）；盘前无真实 bar 才单独画 T 日幽灵。③ 个股快照滞后
+> 到上一交易日时，若指数快照表明今日为交易日，仍按今日(T)预测，不再误标
+> T+1；昨收统一取今日之前最后一根已收盘日K，避免锚错一天。④ 盘中 `next_label`
+> 与 `pred` 目标统一为「今日(T)」，不再把 T 日预测写成「次日(T+1)」。⑤ 市场阶段文案
+> 补「集合竞价撮合（待开盘）」「收盘集合竞价」。`APP_VERSION=7.0.3`，
+> `stock_predict.py` 重新生成，README/ARCHITECTURE 同步。
+
+> **v7.0.2：全量消融加载修复 + 备选 Ollama + 盘口/集合竞价（2026-11-06）**：
+> ① `backtest_strategy_ablation.load_stocks()` 由一次性 `SELECT ... ORDER BY code,
+> date` 拉 2145 万行（约 255s 卡在「加载全缓存对象」）改为按代码逐只取最近
+> 1000 根（走 `idx_bars_code`，约 49s）；已重跑全市场：10559 个对象、有效
+> 10472（ETF 1482），稳健档 sm701 入选 2124（20.3%），验证集 IC5 中位 +0.074
+> （73.3% 为正）。② 设置→AI 接口新增「备选 AI 供应商」：`[ollama]`
+> enabled/base_url/model/api_key，默认本地 `http://localhost:11434/v1` +
+> `qwen3:4b`；`_ai_chat_json()` 主接口失败自动切备选（普通对话与工具调用均
+> 生效，自动去掉 thinking 参数），已用断网主接口实测回退成功。③ 右侧栏新增
+> 「盘口」面板：腾讯五档 + 集合竞价状态（参考价/匹配量/今开/委比，3s 刷新，
+> 新浪兜底）；切到分时视图自动切换侧栏到盘口，切股同步重拉，指数显示无五档
+> 提示；分时标题同步显示集合竞价/开盘竞价价。`APP_VERSION=7.0.2`，
+> `stock_predict.py` 重新生成，README/ARCHITECTURE 同步。
+
+> **AI 侧栏数据区自动加载 + 可折叠（2026-11-05）**：分析完成后自动在侧栏
+> 「数据」区加载当前标的分时 Mini 图；ETF 自动加载成分股前 20（权重/当日涨跌），
+> 与 `get_etf_constituents` 共用完整持仓/最新季报缓存。数据区新增「数据▾」按钮，
+> 可**完全收起/展开**：收起后聊天区自动扩高（实测 209→421px）。数据加载走
+> 独立 daemon 线程，不占 `_BG_EX`，切换股票后旧结果按代码/代数丢弃；同时修复
+> 指数栏行情缺 `chg` 键导致的 KeyError（改用 price/prev_close 回算）。
+
+> **AI 侧栏输入框修复（2026-11-05）**：右侧 AI 栏改为先 pack 底部
+> 设置行/输入框/用量条，再让聊天区 fill+expand；聊天 Text 固定 width/height
+> 请求，避免默认 80 字符宽度把发送按钮挤出、聊天区吞掉输入区。实测输入框
+> 66px、发送按钮可见，聊天区仍自适应剩余高度。
+
+> **AI 外部环境搜索（2026-11-05）**：新增 `get_external_env`，**仅调用 DeepSeek
+> 官方 Search API**（`/v1/tools/search`），默认检索近 7 天全球市场/商品（黄金/
+> 原油/美股/港股/A股/美元/美债）与地缘政治/特朗普/关税/美联储事件，合并去重；
+> 支持 `query` 聚焦；15 分钟内存缓存，成功请求计入用量成本；AI 侧栏新增
+> 「外部环境」快捷按钮；提示词要求涉及外部环境先调用、不得臆测。
+> `stock_predict.py` 重新生成，README/ARCHITECTURE 同步。
+
+> **分时十字光标 + 分时指标（2026-11-05）**：分时视图补齐同步十字光标
+> （主图/量图/指标图竖线联动，悬停图横线+价格/量/指标标签；`hover_var` 显示
+> 时间/价/涨幅/均价/分钟量/量比/MACD）；副图自动切换为**分时 MACD**
+> （DIF/DEA/柱）与**累计量比**（5 日均量×已交易分钟/240，阈值 0.8/1.0/1.2），
+> 不再沿用日线指标；新增 09:30/10:30/13:00/14:00/15:00 时间刻度。
+> README/ARCHITECTURE 同步。
+
+> **ETF 成分股 + 当日分时工具（2026-11-05）**：① 新增 `fetch_etf_holdings()`：
+> 东财 F10 基金持仓（UA/Referer + `_http_get` 限流/熔断/代理），解析各报告期，
+> 优先取年报/中报完整持仓、保留最新季报前 10；内存 6h + SQLite `meta` 24h 缓存
+> （`etf_hold2:<code>`），失败降级旧缓存。② `etf_constituent_perf()` 对前 N 大
+> 成分股批量取行情 + 日K，计算权重/现价/当日/5日/20日/量比并加权汇总；
+> AI 工具 `get_etf_constituents` 自动生成统计表（分析 ETF 优先调用）。
+> ③ `get_kline`/`get_indicators`/`get_intraday` 增加可选 `code`，可查成分股等
+> 其它标的；`get_intraday` 明确为当日/最近交易日分时。④ AI 侧栏新增快捷按钮
+> 「ETF成分」「当日分时」「开始分析」。⑤ `stock_predict.py` 重新生成，
+> README/ARCHITECTURE 同步。
+
+> **AI Agent 侧栏（嵌入主界面右侧栏，2026-11-04）**：AI 分析不再独立窗口——
+> 主界面右侧栏新增「AI Agent」面板（下拉切换；竖栏约 29% 宽度，Tk 原生聊天）；
+> 侧栏内可**切换股票代码**（触发主程序重新分析并刷新图表）与**切换模型**；
+> **模型/思考强度/工具取数/联网为一次性会话选项**（`AIAgent.set_opts`，不写 ini）；
+> 输入栏下方实时显示输入/输出 token、缓存命中率、预计成本（DeepSeek flash/
+> v4-pro 峰谷价近似，USD/CNY）与联网次数；新增 `show_table` 工具生成独立统计表
+> 卡片；AI 画线仍回传 Tk 主图；工具窗不再设 AI 页签（原入口已删除）；
+> `stock_predict.py` 重新生成；README/ARCHITECTURE 同步。
+
+> **AI 按需取数 + 深度思考 + 扩展画线（2026-11-04）**：① 设置→AI 接口新增
+> 「深度思考」（默认开、强度 `max`，ini `[deepseek] thinking/reasoning_effort`）
+> 与「工具取数」（默认开，ini `[deepseek] tools`）；仅官方 `api.deepseek.com`
+> 发送思考/工具参数，其他网关自动回退完整上下文；② AI 分析首轮只给核心快照
+> （股票/现价/缺口/量比/板块/策略风控），其余由模型在思考中按需调用工具：
+> `get_kline`/`get_indicators`/`get_prediction`/`get_similar_samples`/
+> `get_market`/`get_chips_action`/`get_fundamentals`/`get_intraday`/
+> `get_strategy`/`search_news`（最多 8 轮，工具轮回传 `reasoning_content`；
+> 工具异常/网关不支持自动回退旧全文模式）；不再一次性塞满上下文；
+> ③ AI 画线扩展：水平价位≤8、斜线/趋势线/射线≤6（`extend` 向右/两端延伸、
+> `dash` 实虚线、按 kind 配色）、文字标注≤6、区间色块≤3，解析/绘制兼容旧
+> `ai-lines`；④ `stock_predict.py` 重新生成；README/ARCHITECTURE 同步。
+
+> **AI 风险偏好口径修复（2026-11-04）**：此前 AI 首轮上下文把该股策略缓存
+> 档位（`res["risk_mode"]`，可能因消融选型是保守/稳健）当作「当前风险偏好」，
+> 而系统提示词仍按设置档位，同一请求出现两套冲突约束（设置激进却按保守引导）。
+> 现统一由 `ai_risk_mode()` 决定：外部策略 / `test` / `sm701` 模型直出档优先，
+> 其余一律按设置 `CFG.RISK_MODE`；系统提示词与首轮上下文同口径，策略缓存档位
+> 与设置不同时在上下文注明；`stock_predict.py` 重新生成。
+
+> **AI 分析自动联网检索（DeepSeek Search，2026-11-04）**：① 新增 `deepseek_search()`
+> 封装 DeepSeek 官方 `POST /v1/tools/search`（仅 `api.deepseek.com` 生效，其他
+> OpenAI 兼容网关自动跳过）；② 【开始分析】首轮前在后台自动检索该股近 30 天
+> 新闻/公告/业绩（`ai_stock_news`：5 条摘要、同股 30 分钟缓存、失败/空结果缓存
+> 5 分钟），格式化后作为「联网资讯」段拼入首轮上下文，并提示 AI 与行情交叉验证；
+> ③ 设置→AI 接口新增「联网检索」开关（ini `[deepseek] web_search`，默认开）——
+> 关闭后完全离线分析；检索失败/无 Key/非官方接口一律静默跳过，不阻断分析；
+> ④ `stock_predict.py` 重新生成（CLI 同步包含 Search 封装）。
+
+> **键盘精灵修复：失效与不清空（2026-10-25）**：① 全局按键 `root.bind` 改
+> `bind_all`——工具窗/子 Toplevel 有焦点时精灵不再整体失灵（Entry/Text/
+> Combobox 等文本控件仍不劫持）；② 会话判定改以**实际焦点**为准：仅焦点在
+> 搜索框、会话活跃且空闲<30s 才追加，否则一律开新会话清空旧代码——修复
+> `_wiz_active` 滞留导致的按键丢失（失效）与追加在旧代码后（不清空）；
+> ③ 搜索框 FocusOut 的 180ms 延时结束回调改为校验焦点已离开（`_search_end_if_blurred`），
+> 避免刚开启的新会话被延迟回调杀掉；④ 会话加 30s 空闲过期（`_wiz_ts`），
+> 焦点久留搜索框后再次输入也能从头清空。无头冒烟 8 项全过。
+
+> **v7.0.1：多市场正式版——港股/美股/期货/加密并入 + 各市场 sm701 直出 + 工坊按市场应用 + 分市场自选/账本/指标参数（2026-10-25）**：
+> ① **多市场并入（合并桌面 market-sniper）**：代码前缀 `hk00700/usaapl/fugc/
+> cryptobtcusdt` 与 cn 同库同表，复用全部缓存/显示/分时/离线降级链路；
+> Yahoo chart v8 自实现（urllib 走 `_http_get`，继承节流/熔断/离线快速失败/
+> 代理路由）；**顶栏市场下拉**（A股/港股/美股/期货/加密，ini `[market] mode`
+> 持久化），模式感知 normalize（美股模式直输 `msft`）；`_limit_pct` 非 cn 返回
+> None（无涨跌停）。
+> ② **多市场 sm701 直出**：桌面 sm701 生产集扩展为 cn/hk/us/fut 各三周期模型
+> + 各自样本外预测文件（`sm701_paths(market)`）；`_sm701_code` 映射（hk→5位、
+> us→ticker、fut→国内品种码）；`_sm701_live_one` 单股实时复算（**副本库同源
+> 行情** hk_daily/us_daily/fut_daily——特征与训练完全一致，主库补最新日）；
+> `sm701_prob_map` 市场路由（历史落盘 + 实时复算）；**非 cn 市场策略链：
+> 工坊绑定 > sm701 直出 > 多维**（crypto 暂无模型回退多维并标注）；数据层
+> 同源优先——`_get_daily_market` 直读副本库行情表（fua0 4075 根等），Yahoo
+> 兜底；期货模式池动态化为副本库 82 只国内期货品种（A0 等，名称借 sniper 库，
+> 旧 GC=F 池替换）。实测：usaapl/hk00700 信号 54/53 个，finish 补算 1s。
+> ③ **策略工坊按市场应用**：工具菜单「策略工坊（外部策略·按市场应用）」新窗
+> ——选策略 → 应用到 港股/美股/期货/加密（ini `[studio] bind_*`）或解绑；
+> 绑定后该市场全部标的用工坊策略（显式止损/止盈/持有参数按市场独立
+> `stop_loss_pct_市场` 等）。
+> ④ **交易记录插件分市场 + 杠杆 + T+0**：账本键 `{市场}:{实盘|模拟}`（旧记录
+> 迁移 cn:*）；本金 `cap_{市场}_{实盘|模拟}` 独立；**T+1/整手仅 A股**——港股/
+> 美股/期货/加密 T+0 且无整手限制；**杠杆**：`leverage_{市场}`（期货默认10/
+> 加密5/其他1），购买力=本金×杠杆−净占用（卖出回款冲减），超限拒单；
+> 印花税/过户费仅 A股收取。
+> ⑤ **指标参数分市场**：ini `[inds]` 为 A股，`[inds_hk]/[inds_us]/[inds_futures]/
+> [inds_crypto]` 为覆盖（键同 [inds]，未设项继承 A股）；`INDP()` 经**线程本地
+> 上下文**读取（analyze/run_ablation 入口按代码市场设置），并发分析互不串参；
+> 设置→指标参数新增「编辑市场」下拉，非 A股值与 A股相同则不写覆盖（继承）。
+> ⑥ **自选池按市场分开**：`watchlist` 属性化按当前市场返回；ini 每市场一键，
+> 旧 codes 迁移 A股；跨市场加自选按代码归属入账；`fetch_batch_quotes` 含
+> 非 cn 时逐只走市场快照路由。
+> ⑦ **分时线**（腾讯 minute/query + 多市场 Yahoo 1m）：均价 VWAP、昨收基准、
+> 双轴；缓存周期=一个交易日（内存 60s 盘中 TTL + minute_cache 表定型落库）。
+> ⑧ **数据与回测**：全量 A股三档+test 标准回测重跑（v61_report 刷新）；
+> 新增 `backtests/backtest_sm701_markets.py` 多市场回测（hk/us/fut 流动性
+> Top30，sm701 滞回信号 test 风控近1000根）：港股 30/30 交易·胜率中位 60.0%·
+> 区间收益中位 +14.9%；美股 16/20·55.6%·+11.1%；期货 27/30·53.1%·+10.1%；
+> 网页面板新增「多市场 sm701 信号概览」节（`collect_sm701_markets`）；
+> `data_clean` 扫描覆盖多市场入库数据。
+> ⑨ 无网启动优化（离线熔断 + analyze 快照三级降级）、增量拉取瘦身、
+> 基期漂移检测 P0 修复、数据源自定义界面、同花顺第三梯队源（详见 v6.6.5 条目）。
+> `APP_VERSION=7.0.1`，`stock_predict.py` 重新生成；README/ARCHITECTURE 同步。
 
 > **v6.6.5：日K 新增同花顺第三梯队源 + 设置→数据源可配自定义源 + 回填多源兜底 + 增量拉取瘦身 + 基期漂移检测存量缺陷修复（2026-10-24）**：
 > ① **同花顺 v6 line 新源**（`_fetch_ths`）：`d.10jqka.com.cn/v6/line/{市场}_{代码}/01/`

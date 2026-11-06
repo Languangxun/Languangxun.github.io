@@ -193,7 +193,47 @@ SOURCES = [
         "permalink": "/docs/chaodi-strategies/",
         "origin": "本地项目（暂未单独开源）",
     },
-]
+     {
+         "src": DESKTOP / "market-sniper" / "README.md",
+         "dst": "market-sniper.md",
+         "project": "market-sniper",
+         "title": "market-sniper · 超短线研究与实时交易",
+         "permalink": "/docs/market-sniper/",
+         "origin": "[Languangxun/market-sniper](https://github.com/Languangxun/market-sniper)",
+     },
+     {
+         "src": DESKTOP / "sm701" / "README.md",
+         "dst": "sm701.md",
+         "project": "sm701",
+         "title": "sm701 · A 股 T+1 上涨概率预测",
+         "permalink": "/docs/sm701/",
+         "origin": "[Languangxun/sm701](https://github.com/Languangxun/sm701)",
+     },
+     {
+         "src": DESKTOP / "sm702" / "README.md",
+         "dst": "sm702.md",
+         "project": "sm702",
+         "title": "sm702 · 个股顶部识别与止损模型",
+         "permalink": "/docs/sm702/",
+         "origin": "[Languangxun/sm702](https://github.com/Languangxun/sm702)",
+     },
+     {
+         "src": DESKTOP / "stock_strategy_studio" / "README.md",
+         "dst": "stock-strategy-studio.md",
+         "project": "stock-strategy-studio",
+         "title": "stock-strategy-studio · 策略研究与回测",
+         "permalink": "/docs/stock-strategy-studio/",
+         "origin": "[Languangxun/stock-strategy-studio](https://github.com/Languangxun/stock-strategy-studio)",
+     },
+     {
+         "src": DESKTOP / "stock_strategy_studio" / "docs" / "TECHNICAL.md",
+         "dst": "stock-strategy-studio-technical.md",
+         "project": "stock-strategy-studio",
+         "title": "stock-strategy-studio · 技术文档",
+         "permalink": "/docs/stock-strategy-studio-technical/",
+         "origin": "[Languangxun/stock-strategy-studio](https://github.com/Languangxun/stock-strategy-studio)",
+     },
+ ]
 
 for _stem, _label in [
     ("full", "全样本"),
